@@ -47,8 +47,8 @@ class GameState:
         self.players: Dict[str, PlayerState] = {}
         self.rooms: Dict[str, RoomState] = {}
         self.global_state: Dict[str, Any] = {
-            "time_of_day": "day",
-            "weather": "clear",
+            "time_of_day": "work_hours",
+            "weather": "indoor",
             "server_time": datetime.now(),
             "active_events": [],
         }
@@ -58,19 +58,19 @@ class GameState:
 
     def init_default_room(self) -> None:
         main_hall = RoomState(
-            id="main_hall",
-            name="Main Hall",
-            max_capacity=50,
+            id="lobby",
+            name="Office Lobby",
+            max_capacity=20,
             current_players=[],
-            ambient_sound="ambient_hall",
-            background_music="lobby_theme",
+            ambient_sound="office_ambience",
+            background_music="elevator_music",
             lighting_state={
-                "intensity": 1.0,
-                "color": {"r": 1.0, "g": 1.0, "b": 1.0},
+                "intensity": 0.8,
+                "color": {"r": 0.9, "g": 0.9, "b": 0.8},  # Fluorescent lighting
                 "shadows_enabled": True,
             },
         )
-        self.rooms["main_hall"] = main_hall
+        self.rooms["lobby"] = main_hall
 
     def add_player(self, player_id: str, name: str) -> PlayerState:
         player = PlayerState(
@@ -78,13 +78,13 @@ class GameState:
             name=name,
             position=Vector3(x=0.0, y=0.0, z=0.0),
             rotation=Vector3(x=0.0, y=0.0, z=0.0),
-            animation_state="idle",
+            animation_state="working",
             is_speaking=False,
-            current_room="main_hall",
+            current_room="lobby",
             last_updated=datetime.now(),
         )
         self.players[player_id] = player
-        self.rooms["main_hall"].current_players.append(player_id)
+        self.rooms["lobby"].current_players.append(player_id)
         return player
 
     def remove_player(self, player_id: str) -> None:
@@ -125,11 +125,11 @@ class GameState:
             name=name,
             max_capacity=max_capacity,
             current_players=[],
-            ambient_sound=None,
-            background_music=None,
+            ambient_sound="office_ambience",
+            background_music="office_music",
             lighting_state={
-                "intensity": 1.0,
-                "color": {"r": 1.0, "g": 1.0, "b": 1.0},
+                "intensity": 0.8,
+                "color": {"r": 0.9, "g": 0.9, "b": 0.8},  # Fluorescent lighting
                 "shadows_enabled": True,
             },
         )
