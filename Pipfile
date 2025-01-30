@@ -4,22 +4,30 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [packages]
+fastapi = "*"
+uvicorn = "*"
+pydantic = "*"
+requests = "*"
 websockets = "*"
 asyncio = "*"
 python-dotenv = "*"
+httpx = "*"
 
 [dev-packages]
 pytest = "*"
 pytest-asyncio = "*"
-black = "*"
+isort = "*"
 flake8 = "*"
 mypy = "*"
+black = "*"
 
 [requires]
 python_version = "3.11"
 
 [scripts]
-start = "python main.py"
+simulation = "python -m night_salon.scripts.run_simulation"
+coordinator = "python -m night_salon.scripts.run_coordinator"
 format = "black ."
+format-isort = "isort ."
 lint = "flake8 ."
 typecheck = "mypy ."
