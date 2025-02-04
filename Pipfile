@@ -25,7 +25,6 @@ black = "*"
 python_version = "3.11"
 
 [scripts]
-simulation = "python -m night_salon.scripts.run_simulation"
 coordinator = "python -m night_salon.scripts.run_coordinator"
 format = "black ."
 format-isort = "isort ."
