@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
-from night_salon.utils.types import Location, Action
+from utils.types import Location, Action
 
 @dataclass
 class CognitiveState:

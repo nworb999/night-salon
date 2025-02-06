@@ -1,8 +1,6 @@
 import random
-import asyncio
-from typing import Dict, List, Tuple
-from night_salon.utils.types import Location, Action
-from night_salon.coordinator.agents.base import BaseAgent, CognitiveState, FunctionalState
+from utils.types import Location, Action
+from night_salon.agents.base import BaseAgent
 
 class WorkerAgent(BaseAgent):
     def __init__(self, agent_id: str, simulation_url: str):

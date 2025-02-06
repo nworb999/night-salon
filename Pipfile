@@ -25,7 +25,8 @@ black = "*"
 python_version = "3.11"
 
 [scripts]
-coordinator = "python -m night_salon.scripts.run_coordinator"
+start = "python main.py"
+test = "python scripts/test_unity_events.py"
 format = "black ."
 format-isort = "isort ."
 lint = "flake8 ."

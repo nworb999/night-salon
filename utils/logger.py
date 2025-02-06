@@ -26,3 +26,9 @@ def setup_logger(
         logger.addHandler(file_handler)
 
     return logger
+
+    # Setup logging
+logger = setup_logger(
+        "agent_coordinator",
+    )
+    
