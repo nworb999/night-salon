@@ -20,22 +20,97 @@ class WorkerAgent(BaseAgent):
             Action.REST: {"energy": 0.3, "stress": -0.2, "social": 0.0},
         }
 
-    async def update_cognitive_state(self):
-        """Update cognitive state based on current activity and needs"""
-        effects = self.action_effects.get(self.functional_state.current_action, {})
+        self.movement_state = {
+            "last_position": None,
+            "current_destination": None,
+            "time_at_location": 0.0,
+            "movement_started": None
+        }
 
-        # Update state based on current action
+        self.movement_effects = {
+            "walking": {"energy": -0.05, "stress": 0.02},
+            "standing": {"energy": 0.02, "stress": -0.03},
+        }
+
+    async def handle_position_update(self, position_data: dict):
+        """Handle position updates from Unity"""
+        current_pos = position_data.get("position")
+        
+        if self.movement_state["last_position"] is None:
+            self.movement_state["last_position"] = current_pos
+            return
+
+        # Calculate movement and update cognitive state
+        is_moving = any(
+            abs(current_pos[i] - self.movement_state["last_position"][i]) > 0.01 
+            for i in range(3)
+        )
+        
+        if is_moving:
+            await self._apply_movement_effects("walking")
+            self.functional_state.current_animation = "walking"
+        else:
+            await self._apply_movement_effects("standing")
+            # Don't override animation if already set (e.g., "typing", "talking")
+            if self.functional_state.current_animation == "walking":
+                self.functional_state.current_animation = "standing"
+
+        self.movement_state["last_position"] = current_pos
+
+    async def handle_destination_change(self, destination_data: dict):
+        """Handle destination change events from Unity"""
+        new_destination = destination_data.get("position")
+        self.movement_state["current_destination"] = new_destination
+        
+        # Update cognitive state based on destination change
+        if self.movement_state["movement_started"] is None:
+            self.movement_state["movement_started"] = time.time()
+            
+        # Generate thought about movement
+        self.cognitive_state.thought = self._generate_movement_thought()
+        
+        await self.update_cognitive_state()
+
+    async def _apply_movement_effects(self, movement_type: str):
+        """Apply movement-related effects to cognitive state"""
+        effects = self.movement_effects.get(movement_type, {})
+        
         self.cognitive_state.energy_level = max(
             0.0, min(1.0, self.cognitive_state.energy_level + effects.get("energy", 0))
         )
         self.cognitive_state.stress_level = max(
             0.0, min(1.0, self.cognitive_state.stress_level + effects.get("stress", 0))
         )
-        self.cognitive_state.social_need = max(
-            0.0, min(1.0, self.cognitive_state.social_need + effects.get("social", 0))
-        )
+        
+        await self.update_cognitive_state()
 
-        # Update emotion based on state
+    def _generate_movement_thought(self) -> str:
+        """Generate thoughts related to movement"""
+        if self.cognitive_state.energy_level < 0.3:
+            return "I'm getting tired from all this walking"
+        elif self.cognitive_state.stress_level > 0.7:
+            return "Need to find a place to rest"
+        elif self.movement_state["current_destination"]:
+            return "Heading to my next destination"
+        return "Just taking a walk"
+
+    async def update_cognitive_state(self):
+        """Update cognitive state based on current activity and needs"""
+        # Existing cognitive state update logic
+        await super().update_cognitive_state()
+        
+        # Additional movement-related updates
+        if self.movement_state["movement_started"]:
+            movement_duration = time.time() - self.movement_state["movement_started"]
+            
+            # Increase fatigue for long movements
+            if movement_duration > 300:  # 5 minutes
+                self.cognitive_state.energy_level = max(
+                    0.0, 
+                    self.cognitive_state.energy_level - 0.1
+                )
+        
+        # Update emotion based on new state
         self.cognitive_state.emotion = self._determine_emotion()
 
     def _determine_emotion(self) -> str:

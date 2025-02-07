@@ -1,5 +1,6 @@
 import socket
 import json
+import asyncio
 import threading
 from typing import Dict, Callable
 from utils.logger import logger
@@ -45,6 +46,8 @@ class UnityClient:
             "destination_change": self._default_destination_handler,
         }
 
+        self.loop = asyncio.new_event_loop()
+
         # Start UDP listener thread
         self._start_event_listener()
 
@@ -87,8 +90,19 @@ class UnityClient:
         threading.Thread(target=self._listen_for_events, daemon=True).start()
         logger.info("Started UDP event listener thread")
 
+    async def _handle_event(self, event_type: str, agent_id: str = None, event_data: dict = None):
+        """Handle event with proper async support"""
+        if event_type in self.event_handlers:
+            handler = self.event_handlers[event_type]
+            if agent_id:
+                await handler(agent_id, event_data)
+            else:
+                await handler(event_data)
+
     def _listen_for_events(self):
         """Listen for UDP events from Unity"""
+        asyncio.set_event_loop(self.loop)
+        
         logger.info("Started listening for Unity events...")
         while True:
             try:
@@ -119,12 +133,8 @@ class UnityClient:
                                 if isinstance(event_data, str)
                                 else event_data
                             )
-                            logger.info(
-                                f"State change event received for agent {agent_id}: {new_state}"
-                            )
-                            self.event_handlers.get(
-                                "state_change", self._default_state_handler
-                            )(agent_id, new_state)
+                            # Run the handler in the event loop
+                            self.loop.create_task(self._handle_event("state_change", agent_id, new_state))
                         except json.JSONDecodeError as je:
                             logger.error(
                                 f"Failed to parse state data: {je}, raw data: {event_data}"
@@ -139,18 +149,32 @@ class UnityClient:
                             if isinstance(event_data, str)
                             else event_data
                         )
-                        logger.info(f"Position update received: {position_data}")
-                        self.event_handlers.get(
-                            "position_update", self._default_position_handler
-                        )(position_data)
+                        self.loop.create_task(self._handle_event("position_update", None, position_data))
                     except json.JSONDecodeError as je:
                         logger.error(
                             f"Failed to parse position data: {je}, raw data: {event_data}"
                         )
 
+                elif event_type == "destination_change":
+                    if agent_id:
+                        try:
+                            destination_data = (
+                                json.loads(event_data)
+                                if isinstance(event_data, str)
+                                else event_data
+                            )
+                            self.loop.create_task(self._handle_event("destination_change", agent_id, destination_data))
+                        except json.JSONDecodeError as je:
+                            logger.error(
+                                f"Failed to parse destination data: {je}, raw data: {event_data}"
+                            )
+                    else:
+                        logger.warning("Received destination_change event without agent_id")
+
                 elif event_type and event_type in self.event_handlers:
                     logger.info(f"Processing event type: {event_type}")
-                    self.event_handlers[event_type](event_data)
+                    if event_type not in ["state_change", "position_update", "destination_change"]:
+                        self.loop.create_task(self._handle_event(event_type, None, event_data))
                 else:
                     logger.warning(f"Received unhandled Unity event type: {event_type}")
 

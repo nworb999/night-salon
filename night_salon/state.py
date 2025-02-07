@@ -73,6 +73,7 @@ class CoordinatorState:
 
                 # Send immediate update back to Unity
                 state_update = agent.get_state_update()
+                
                 self.unity_client.send_agent_update(agent_id, state_update)
 
     async def _agent_loop(self, agent: BaseAgent):
