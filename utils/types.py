@@ -3,13 +3,13 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 
-
 class AgentStatus(BaseModel):
     agent_id: str
     location: str
     current_action: str
     objective: str
     thought: str
+
 
 class Location(Enum):
     CONFERENCE_ROOM = auto()

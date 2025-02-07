@@ -28,7 +28,8 @@ def setup_logger(
     return logger
 
     # Setup logging
+
+
 logger = setup_logger(
-        "agent_coordinator",
-    )
-    
+    "agent_coordinator",
+)
