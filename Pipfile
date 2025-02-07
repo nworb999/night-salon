@@ -26,7 +26,7 @@ python_version = "3.11"
 
 [scripts]
 start = "python main.py"
-test = "python scripts/test_unity_events.py"
+test = "python scripts/test_udp.py"
 format = "black ."
 format-isort = "isort ."
 lint = "flake8 ."

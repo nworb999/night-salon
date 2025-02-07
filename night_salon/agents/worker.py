@@ -1,3 +1,4 @@
+import time
 import random
 from utils.types import Location, Action
 from night_salon.agents.base import BaseAgent
@@ -30,6 +31,17 @@ class WorkerAgent(BaseAgent):
         self.movement_effects = {
             "walking": {"energy": -0.05, "stress": 0.02},
             "standing": {"energy": 0.02, "stress": -0.03},
+        }
+        
+
+    def get_state_update(self) -> dict:
+        """Get the current state update to send to Unity"""
+        return {
+            "objective": self.cognitive_state.objective,
+            "thought": self.cognitive_state.thought,
+            "emotion": self.cognitive_state.emotion,
+            "current_action": self.functional_state.current_action.name if self.functional_state.current_action else None,
+            "current_animation": self.functional_state.current_animation
         }
 
     async def handle_position_update(self, position_data: dict):

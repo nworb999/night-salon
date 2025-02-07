@@ -4,14 +4,14 @@ from typing import Optional
 
 
 def setup_logger(
-    name: str, level: int = logging.INFO, log_file: Optional[Path] = None
+    level: int = logging.INFO, log_file: Optional[Path] = None
 ) -> logging.Logger:
     """Configure and return a logger instance with consistent formatting"""
-    logger = logging.getLogger(name)
+    logger = logging.getLogger()
     logger.setLevel(level)
 
     formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "%(asctime)s - %(levelname)s - %(message)s"
     )
 
     # Console handler
@@ -30,6 +30,5 @@ def setup_logger(
     # Setup logging
 
 
-logger = setup_logger(
-    "agent_coordinator",
-)
+logger = setup_logger()
+  

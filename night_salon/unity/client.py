@@ -55,17 +55,32 @@ class UnityClient:
             f"UnityClient initialized - TCP port: {unity_tcp_port}, UDP receive port: {udp_receive_port}, UDP send port: {unity_udp_port}"
         )
 
+        self.send_test_message()
+
+    def send_test_message(self):
+        """Send a test message to Unity via UDP to verify connection"""
+        try:
+            test_message = {
+                "type": "test_message",
+                "data": "Hello Unity! Connection test from Python client."
+            }
+            data = json.dumps(test_message).encode()
+            self.udp_send_socket.sendto(data, (self.unity_host, self.unity_udp_port))
+            logger.info("Test message sent to Unity successfully")
+        except Exception as e:
+            logger.error(f"Failed to send test message to Unity: {e}")
+
     def _default_state_handler(self, agent_id: str, state_data: dict):
         """Default handler for state change events"""
-        # logger.info(f"State change for agent {agent_id}: {state_data}")
+        logger.info(f"State change for agent {agent_id}: {state_data}")
 
-    def _default_position_handler(self, position_data: dict):
+    def _default_position_handler(self, agent_id:str, position_data: dict):
         """Default handler for position update events"""
-        # logger.info(f"Position update: {position_data}")
+        logger.info(f"Position update: {agent_id} : {position_data}")
 
     def _default_destination_handler(self, agent_id: str, destination_data: dict):
         """Default handler for destination change events"""
-        # logger.info(f"Destination change for agent {agent_id}: {destination_data}")
+        logger.info(f"Destination change for agent {agent_id}: {destination_data}")
 
     def send_request(self, request_type: str) -> dict:
         """Send TCP request to Unity and get response"""
@@ -91,92 +106,78 @@ class UnityClient:
         logger.info("Started UDP event listener thread")
 
     async def _handle_event(self, event_type: str, agent_id: str = None, event_data: dict = None):
-        """Handle event with proper async support"""
+        """Handle event with proper async support"""        
         if event_type in self.event_handlers:
             handler = self.event_handlers[event_type]
-            if agent_id:
-                await handler(agent_id, event_data)
-            else:
-                await handler(event_data)
+            try:
+                if agent_id:
+                    await handler(agent_id, event_data)
+                else:
+                    await handler(event_data)
+            except Exception as e:
+                logger.error(f"[HANDLE EVENT] Error in handler: {str(e)}", exc_info=True)
+        else:
+            logger.warning(f"[HANDLE EVENT] No handler found for event type: {event_type}")
 
     def _listen_for_events(self):
         """Listen for UDP events from Unity"""
         asyncio.set_event_loop(self.loop)
         
-        logger.info("Started listening for Unity events...")
+        # Start the event loop
+        def run_loop():
+            try:
+                self.loop.run_forever()
+            except Exception as e:
+                logger.error(f"Event loop error: {str(e)}", exc_info=True)
+        
+        loop_future = self.loop.run_in_executor(None, run_loop)
+        
         while True:
             try:
-                logger.debug("Waiting for UDP data...")
                 data, addr = self.udp_receive_socket.recvfrom(1024)
-                logger.debug(f"Raw data received from {addr}: {data}")
-
                 decoded_data = data.decode()
-                logger.debug(f"Decoded data: {decoded_data}")
-
                 event = json.loads(decoded_data)
-                logger.debug(f"Parsed event: {event}")
-
-                # Extract event type and data
+                
                 event_type = event.get("type")
                 agent_id = event.get("agent_id")
                 event_data = event.get("data")
 
-                logger.debug(
-                    f"Extracted fields - type: {event_type}, agent_id: {agent_id}, data: {event_data}"
-                )
-
-                if event_type == "state_change":
-                    if agent_id:
-                        try:
-                            new_state = (
-                                json.loads(event_data)
-                                if isinstance(event_data, str)
-                                else event_data
-                            )
-                            # Run the handler in the event loop
-                            self.loop.create_task(self._handle_event("state_change", agent_id, new_state))
-                        except json.JSONDecodeError as je:
-                            logger.error(
-                                f"Failed to parse state data: {je}, raw data: {event_data}"
-                            )
-                    else:
-                        logger.warning("Received state_change event without agent_id")
+                if event_type == "state_change" and agent_id:
+                    try:
+                        new_state = json.loads(event_data) if isinstance(event_data, str) else event_data
+                        asyncio.run_coroutine_threadsafe(
+                            self._handle_event("state_change", agent_id, new_state),
+                            self.loop
+                        )
+                    except json.JSONDecodeError as je:
+                        logger.error(f"Failed to parse state data: {je}, raw data: {event_data}")
 
                 elif event_type == "position_update":
                     try:
-                        position_data = (
-                            json.loads(event_data)
-                            if isinstance(event_data, str)
-                            else event_data
+                        position_data = json.loads(event_data) if isinstance(event_data, str) else event_data
+                        asyncio.run_coroutine_threadsafe(
+                            self._handle_event("position_update", agent_id, position_data),
+                            self.loop
                         )
-                        self.loop.create_task(self._handle_event("position_update", None, position_data))
                     except json.JSONDecodeError as je:
-                        logger.error(
-                            f"Failed to parse position data: {je}, raw data: {event_data}"
-                        )
+                        logger.error(f"Failed to parse position data: {je}, raw data: {event_data}")
 
-                elif event_type == "destination_change":
-                    if agent_id:
-                        try:
-                            destination_data = (
-                                json.loads(event_data)
-                                if isinstance(event_data, str)
-                                else event_data
-                            )
-                            self.loop.create_task(self._handle_event("destination_change", agent_id, destination_data))
-                        except json.JSONDecodeError as je:
-                            logger.error(
-                                f"Failed to parse destination data: {je}, raw data: {event_data}"
-                            )
-                    else:
-                        logger.warning("Received destination_change event without agent_id")
+                elif event_type == "destination_change" and agent_id:
+                    try:
+                        destination_data = json.loads(event_data) if isinstance(event_data, str) else event_data
+                        asyncio.run_coroutine_threadsafe(
+                            self._handle_event("destination_change", agent_id, destination_data),
+                            self.loop
+                        )
+                    except json.JSONDecodeError as je:
+                        logger.error(f"Failed to parse destination data: {je}, raw data: {event_data}")
 
                 elif event_type and event_type in self.event_handlers:
-                    logger.info(f"Processing event type: {event_type}")
                     if event_type not in ["state_change", "position_update", "destination_change"]:
-                        self.loop.create_task(self._handle_event(event_type, None, event_data))
-                else:
-                    logger.warning(f"Received unhandled Unity event type: {event_type}")
+                        asyncio.run_coroutine_threadsafe(
+                            self._handle_event(event_type, None, event_data),
+                            self.loop
+                        )
 
             except json.JSONDecodeError as e:
                 logger.error(
@@ -185,10 +186,12 @@ class UnityClient:
             except Exception as e:
                 logger.error(f"Error receiving Unity event: {e}", exc_info=True)
 
+
     def register_handler(self, event_type: str, handler: Callable):
         """Register a callback function for a specific event type"""
         logger.info(f"Registering handler for event type: {event_type}")
         self.event_handlers[event_type] = handler
+
 
     def send_agent_update(self, agent_id: str, state_update: dict):
         """Send agent state updates to Unity via UDP"""
