@@ -5,7 +5,10 @@ from typing import Dict, Callable
 from utils.logger import logger
 
 class UnityClient:
-    def __init__(self,                 udp_receive_port: int = 8001,
+    def __init__(self,   
+                 bind_host: str = "0.0.0.0",
+                 unity_host: str = "127.0.0.1",              
+                 udp_receive_port: int = 8001,
                  unity_tcp_port: int = 8052,
                  unity_udp_port: int = 8053):
         
@@ -22,13 +25,14 @@ class UnityClient:
         
         # UDP Socket for receiving events from Unity
         self.udp_receive_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.udp_receive_socket.bind(('127.0.0.1', udp_receive_port))
+        self.udp_receive_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.udp_receive_socket.bind((bind_host, udp_receive_port))
         
         # UDP Socket for sending updates to Unity
         self.udp_send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         
         # Unity server details
-        self.unity_host = '127.0.0.1'
+        self.unity_host = unity_host
         self.unity_tcp_port = unity_tcp_port
         self.unity_udp_port = unity_udp_port
 

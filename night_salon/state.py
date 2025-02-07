@@ -10,11 +10,17 @@ from utils.types import Location
 from utils.logger import logger
 
 class CoordinatorState:
-    def __init__(self, unity_url: str):
+    def __init__(self, unity_url: str, unity_host: str = "127.0.0.1", unity_bind_host: str = "0.0.0.0", 
+                 unity_tcp_port: int = 8052, unity_udp_port: int = 8053):
         self.unity_url = unity_url
         self.agents: Dict[str, WorkerAgent] = {}
         self.agent_tasks: Dict[str, asyncio.Task] = {}
-        self.unity_client = UnityClient()
+        self.unity_client = UnityClient(
+            bind_host=unity_bind_host,
+            unity_host=unity_host,
+            unity_tcp_port=unity_tcp_port,
+            unity_udp_port=unity_udp_port
+        )
 
         self.unity_client.register_handler("state_change", self._handle_unity_state_change)
 

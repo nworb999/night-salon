@@ -14,10 +14,12 @@ class Config:
     def __init__(self):
         load_dotenv()
 
-        self.coordinator_host = os.getenv("COORDINATOR_HOST", "0.0.0.0")
+        self.coordinator_bind_host = "0.0.0.0"  # Always bind to all interfaces
+        self.coordinator_host = os.getenv("COORDINATOR_HOST", "127.0.0.1") 
         self.coordinator_port = int(os.getenv("COORDINATOR_PORT", "8001"))
 
         # Unity HTTP endpoint
+        self.unity_bind_host = "0.0.0.0"  # For receiving connections
         self.unity_host = os.getenv('UNITY_HOST', '127.0.0.1')
         self.unity_http_port = int(os.getenv('UNITY_HTTP_PORT', '8080'))  
         self.unity_url = f"http://{self.unity_host}:{self.unity_http_port}"
