@@ -14,18 +14,14 @@ class CoordinatorState:
         self,
         unity_url: str,
         unity_host: str = "127.0.0.1",
-        unity_bind_host: str = "0.0.0.0",
         unity_tcp_port: int = 8052,
-        unity_udp_port: int = 8053,
     ):
         self.unity_url = unity_url
         self.agents: Dict[str, WorkerAgent] = {}
         self.agent_tasks: Dict[str, asyncio.Task] = {}
         self.unity_client = UnityClient(
-            bind_host=unity_bind_host,
             unity_host=unity_host,
             unity_tcp_port=unity_tcp_port,
-            unity_udp_port=unity_udp_port,
         )
 
         self.unity_client.register_handler("state_change", self._handle_state_change)
@@ -39,51 +35,37 @@ class CoordinatorState:
         agent = WorkerAgent(agent_id, self.unity_url)
         self.agents[agent_id] = agent
 
-        # async with httpx.AsyncClient() as client:
-        #     response = await client.post(
-        #         f"{self.unity_url}/agents/{agent_id}",
-        #         json={"location": Location.CUBICLES.name},
-        #     )
-        #     if response.status_code != 200:
-        #         logger.error(
-        #             f"Failed to initialize agent {agent_id} in simulation: {response.text}"
-        #         )
-        #         return False
-
-        # task = asyncio.create_task(self._agent_loop(agent))
-        # self.agent_tasks[agent_id] = task
-
         return True
     
-    async def _handle_position_update(self, agent_id:str, position_data: dict):
+    def _handle_position_update(self, agent_id:str, position_data: dict):
         """Handle position updates from Unity"""
         # logger.info(f"Received position update for agent {agent_id}: {position_data}")
         if not agent_id in self.agents:
-            success = await self.create_agent(agent_id=agent_id)
-            if not success:
+            asyncio.run(self.create_agent(agent_id=agent_id))
+            if not agent_id in self.agents:
                 logger.error(f"Failed to create agent {agent_id}")
                 return
         agent = self.agents[agent_id]
         pass
 
-    async def _handle_destination_change(self, agent_id: str, destination_data: dict):
+    def _handle_destination_change(self, agent_id: str, destination_data: dict):
         """Handle destination changes from Unity"""
         logger.info(f"Received destination change for agent {agent_id}: {destination_data}")
         if not agent_id in self.agents:
-            success = await self.create_agent(agent_id=agent_id)
-            if not success:
+            asyncio.run(self.create_agent(agent_id=agent_id))
+            if not agent_id in self.agents:
                 logger.error(f"Failed to create agent {agent_id}")
                 return
         agent = self.agents[agent_id]
         # TODO: Update agent's destination information if needed
         pass
 
-    async def _handle_state_change(self, agent_id: str, new_state: dict):
+    def _handle_state_change(self, agent_id: str, new_state: dict):
         """Handle state changes from Unity"""
         logger.info(f"Received state change for agent {agent_id}: {new_state}")
         if not agent_id in self.agents:
-            success = await self.create_agent(agent_id=agent_id)
-            if not success:
+            asyncio.run(self.create_agent(agent_id=agent_id))
+            if not agent_id in self.agents:
                 logger.error(f"Failed to create agent {agent_id}")
                 return
         agent = self.agents[agent_id]
