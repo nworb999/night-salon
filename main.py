@@ -1,63 +1,21 @@
+from config.logger import logger
+from night_salon.server.server import Server
 import sys
-import signal
-import uvicorn
-from flask import Flask
-
-from utils.logger import logger
-from utils.config import Config
-
-from night_salon.state import CoordinatorState
-from night_salon.api.routes import init_routes
-
-
-def create_app(unity_url: str) -> Flask:
-    app = Flask(__name__)
-    config = Config()
-
-    state = CoordinatorState(
-        unity_url=unity_url,
-        unity_host=config.unity_host,
-        unity_tcp_port=config.unity_tcp_port,
-    )
-
-    # Initialize routes with state
-    init_routes(state, app)
-
-    return app
-    
-
 
 def main():
+    server = Server()
     try:
-        config = Config()
-
+        server.start()
     except Exception as e:
-        print(f"Failed to load configuration: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    logger.info(
-        f"Starting coordinator server on {config.coordinator_host}:{config.coordinator_port}"
-    )
-    logger.info(f"Unity connections:")
-    logger.info(f"  - HTTP API: {config.unity_url}")
-    logger.info(f"  - TCP Socket: {config.unity_host}:{config.unity_tcp_port}")
-    logger.info(f"  - UDP Socket: {config.unity_host}:{config.unity_udp_port}")
-
-    try:
-        # Create Flask app with simulation server URL
-        app = create_app(config.unity_url)
-
-        # Run the Flask app
-        app.run(
-            host=config.coordinator_bind_host,
-            port=config.coordinator_port,
-            debug=(config.log_level.lower() == "debug"),
-        )
-
-    except Exception as e:
-        logger.error(f"Server failed to start: {e}")
-        sys.exit(1)
-
+        logger.error(f"Server failed: {e}")
+    finally:
+        logger.info("Server stopped.")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Main script interrupted.")
+    except Exception as e:
+        logger.error(f"Unhandled exception: {e}")
+        sys.exit(1)

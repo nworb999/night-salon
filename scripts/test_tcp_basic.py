@@ -1,10 +1,16 @@
 import socket
 import time
 import json
+from config import Config
+from config.logger import logger
+
+config = Config()
 
 def receive_message(socket):
     # Read message length (4 bytes, little endian as BitConverter uses little endian by default)
     length_bytes = socket.recv(4)
+    if not length_bytes:
+        return None  # Indicate disconnection
     message_length = int.from_bytes(length_bytes, byteorder='little')
     
     # Read exact message length
@@ -13,7 +19,7 @@ def receive_message(socket):
     while remaining > 0:
         chunk = socket.recv(remaining)
         if not chunk:
-            raise ConnectionError("Connection closed while receiving message")
+            return None  # Indicate disconnection
         chunks.append(chunk)
         remaining -= len(chunk)
     
@@ -24,20 +30,20 @@ def receive_message(socket):
 
 def start_python_server():
     # Connect to Unity server
-    server_address = ('127.0.0.1', 5000)
+    server_address = (config.host, config.port)
     
     while True:
         try:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            print("Connecting to Unity server...")
+            logger.info("Connecting to Unity server...")
             client_socket.connect(server_address)
-            print("Connected to Unity server!")
+            logger.info("Connected to Unity server!")
             break
         except ConnectionRefusedError:
-            print("Connection failed. Retrying in 2 seconds...")
+            logger.warning("Connection failed. Retrying in 2 seconds...")
             time.sleep(2)
         except KeyboardInterrupt:
-            print("\nConnection attempts cancelled by user.")
+            logger.info("\nConnection attempts cancelled by user.")
             return
 
     try:
@@ -51,23 +57,30 @@ def start_python_server():
                 client_socket.send(length_prefix)
                 # Then send the actual message
                 client_socket.send(message_bytes)
-                print(f"Sent to Unity: {message}")
+                logger.info(f"Sent to Unity: {message}")
 
                 # Receive update from Unity
-                message = receive_message(client_socket)
-                if message:
-                    print(f"Received complete message: {message}")
+                response = receive_message(client_socket)
+                if response:
+                    logger.info(f"Received complete message: {response}")
+                else:
+                    logger.info("Connection closed by server.")
+                    break
 
                 time.sleep(1)  # Wait for 1 second before next request
 
             except (ConnectionAbortedError, ConnectionResetError) as e:
-                print(f"\nConnection lost: {e}")
+                logger.error(f"\nConnection lost: {e}")
                 client_socket.close()
+                break
+            except Exception as e:
+                logger.error(f"An error occurred: {e}")
                 break
 
     except KeyboardInterrupt:
-        print("\nClosing connection...")
-        client_socket.close()
+        logger.info("\nClosing connection...")
+        if client_socket:
+            client_socket.close()
 
 if __name__ == "__main__":
     start_python_server()
