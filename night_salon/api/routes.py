@@ -1,7 +1,8 @@
-from flask import Flask, jsonify, abort
+from flask import Flask, jsonify, abort, request
 
 from night_salon.state import CoordinatorState
 from utils.types import AgentStatus
+from utils.logger import logger
 
 state: CoordinatorState = None
 
@@ -16,10 +17,11 @@ def init_routes(coordinator_state: CoordinatorState, app: Flask):
 
     @app.route("/agents/<agent_id>", methods=['POST'])
     def create_agent(agent_id: str):
-        success = state.create_agent(agent_id)
-        if not success:
-            abort(400, "Agent already exists")
-        return jsonify({"status": "created"})
+        """Create a new agent."""
+        if state.create_agent(agent_id):
+            return jsonify({"message": f"Agent {agent_id} created."}), 201
+        else:
+            return jsonify({"message": f"Agent {agent_id} already exists."}), 409
 
     @app.route("/agents", methods=['GET'])
     def list_agents():
@@ -53,3 +55,38 @@ def init_routes(coordinator_state: CoordinatorState, app: Flask):
 
         state.agents.pop(agent_id)
         return jsonify({"status": "removed"})
+
+    @app.route("/agents/<agent_id>/state", methods=["POST"])
+    def update_agent_state(agent_id: str):
+        """Update an agent's state."""
+        try:
+            # Check if the content type is application/json
+            if request.content_type != 'application/json':
+                return jsonify({"error": "Content type must be application/json"}), 400
+
+            # Parse JSON data from the request body
+            try:
+                data = request.get_json()
+            except Exception as e:
+                return jsonify({"error": f"Failed to parse JSON: {str(e)}"}), 400
+
+            if not data:
+                return jsonify({"error": "Request body must be JSON"}), 400
+
+            objective = data.get("objective")
+            thought = data.get("thought")
+            emotion = data.get("emotion")
+
+            if objective is None or thought is None or emotion is None:
+                return jsonify({"error": "Missing required fields"}), 400
+
+            # Log the received data
+            logger.info(f"Received state update for agent {agent_id}: {data}")
+
+            # Send agent state updates to Unity via TCP
+            state.unity_client.send_agent_update(agent_id, data)
+
+            return jsonify({"message": f"Agent {agent_id} state updated."}), 200
+        except Exception as e:
+            logger.error(f"Error updating agent state: {e}")
+            return jsonify({"error": str(e)}), 500
