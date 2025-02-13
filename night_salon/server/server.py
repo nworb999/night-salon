@@ -1,8 +1,10 @@
 import json
 import socket
 import time
+import traceback
+import sys
 from config import Config
-from night_salon.models.agent import Agent
+from night_salon.utils.types import Agent
 from night_salon.models.events import UnityEvent
 from night_salon.cognitive.state_manager import StateManager
 from config.logger import logger
@@ -55,34 +57,50 @@ class Server:
 
     def process_message(self, message):
         try:
-            data = json.loads(message)
-            event_type = data.get('type')
-            agent_id = data.get('agent_id')
+            # Split message by pipe character
+            parts = message.split('|')
+            if len(parts) != 3:
+                raise ValueError("Message format incorrect - expected 3 parts separated by '|'")
 
-            if event_type == "agent_spawn":
-                if agent_id not in self.agents:
-                    self.agents[agent_id] = Agent(agent_id)
-                    logger.info(f"Spawned agent {agent_id}")
-                    return {"type": "spawn_confirmation", "agent_id": agent_id}
-
-            elif event_type == "agent_update":
+            event_type = parts[0]
+            agent_id = parts[1]
+            data = json.loads(parts[2])
+            print(event_type + "\n")
+            
+            if event_type == "position_update":
+                # Get or create agent
                 agent = self.agents.get(agent_id)
-                if agent:
-                    updated_state = self.state_manager.process_event(agent, data)
-                    return {
-                        "type": "cognitive_update",
-                        "agent_id": agent_id,
-                        "state": updated_state
-                    }
+                if not agent:
+                    agent = Agent(agent_id)
+                    self.agents[agent_id] = agent
+                
+                # Create a UnityEvent object instead of a dictionary
+                event = UnityEvent(
+                    type=event_type,
+                    agent_id=agent_id,
+                    position=data.get('position'),
+                    velocity=data.get('velocity'),
+                    speed=data.get('speed')
+                )
+                updated_state = self.state_manager.process_event(agent, event)
+                return {
+                    "type": "cognitive_update",
+                    "agent_id": agent_id,
+                    "state": updated_state
+                }
 
             return {"type": "error", "message": "Unknown event type"}
 
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON received: {message}")
-            return {"type": "error", "message": "Invalid JSON"}
+            return {"type": "error", "message": f"Invalid JSON: {str(e)}"}
         except Exception as e:
-            logger.error(f"Error processing message: {e}")
-            return {"type": "error", "message": str(e)}
+            exc_info = sys.exc_info()
+            stack = traceback.extract_tb(exc_info[2])
+            line_number = stack[-1].lineno if stack else 'unknown'
+            logger.error(f"Error in {__name__} line {line_number}: {str(e)}")
+            logger.debug(f"Full traceback:\n{''.join(traceback.format_exception(*exc_info))}")
+            return {"type": "error", "message": f"{e.__class__.__name__} at {__name__}:{line_number}: {str(e)}"}
 
     def start(self):
         client_address = (config.unity_host, config.unity_port)  # Unity server address

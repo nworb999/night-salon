@@ -1,4 +1,4 @@
-from night_salon.utils.types import AgentStatus, Location, Action
+from night_salon.utils.types import Location, Action
 
 class StateManager:
     def process_event(self, agent, event):
@@ -42,10 +42,8 @@ class StateManager:
     
     def _get_cognitive_state(self, agent):
         """Return the current cognitive state to be sent to Unity"""
-        return AgentStatus(
-            agent_id=agent.id,
-            location=agent.state["location"].name,
-            current_action=agent.state["current_action"].name,
-            objective=agent.state["objective"],
-            thought=agent.state["thought"]
-        ).dict()
+        state_copy = agent.state.copy()
+        # Convert enums to strings
+        state_copy["location"] = agent.state["location"].name
+        state_copy["current_action"] = agent.state["current_action"].name
+        return state_copy

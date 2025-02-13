@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from typing import Optional
+import sys
 
 
 def setup_logger(
@@ -11,11 +12,11 @@ def setup_logger(
     logger.setLevel(level)
 
     formatter = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s"
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
 
     # Console handler
-    console_handler = logging.StreamHandler()
+    console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 

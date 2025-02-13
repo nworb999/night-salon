@@ -1,22 +1,15 @@
 from pydantic import BaseModel
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
+    
 
-
-class AgentStatus(BaseModel):
-    agent_id: str
-    location: str
-    current_action: str
-    objective: str
-    thought: str
-
-
-class Location(Enum):
-    CONFERENCE_ROOM = auto()
-    WATER_COOLER = auto()
-    SMOKING_AREA = auto()
-    CUBICLES = auto()
-    BATHROOM = auto()
+class Location(str, Enum):
+    HALLWAY = "HALLWAY"
+    CONFERENCE_ROOM = "CONFERENCE_ROOM"
+    WATER_COOLER = "WATER_COOLER"
+    SMOKING_AREA = "SMOKING_AREA"
+    CUBICLES = "CUBICLES"
+    BATHROOM = "BATHROOM"
 
 
 class Action(Enum):
@@ -36,7 +29,25 @@ class Action(Enum):
 @dataclass
 class Agent:
     id: str
-    location: Location
-    current_action: Action
-    objective: str
-    thought: str
+    location: Location = Location.HALLWAY
+    current_action: Action = Action.WALK
+    objective: str = "Exploring"
+    thought: str = "Processing..."
+    state: dict = field(default_factory=lambda: {
+        "position": {"x": 0, "y": 0, "z": 0},
+        "velocity": {"x": 0, "y": 0, "z": 0},
+        "speed": 0,
+    })
+
+    def __post_init__(self):
+        # Ensure state dictionary is consistent with instance attributes
+        self.state.update({
+            "agent_id": self.id,
+            "location": self.location,
+            "current_action": self.current_action,
+            "objective": self.objective,
+            "thought": self.thought
+        })
+
+    def update_position(self, x, y, z):
+        self.state["position"] = {"x": x, "y": y, "z": z}

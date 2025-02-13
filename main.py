@@ -1,8 +1,14 @@
+import signal
+import sys
 from config.logger import logger
 from night_salon.server.server import Server
-import sys
+
+def signal_handler(sig, frame):
+    logger.info("Ctrl+C detected. Shutting down...")
+    sys.exit(0)
 
 def main():
+    signal.signal(signal.SIGINT, signal_handler)
     server = Server()
     try:
         server.start()
@@ -14,8 +20,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except KeyboardInterrupt:
-        logger.info("Main script interrupted.")
     except Exception as e:
         logger.error(f"Unhandled exception: {e}")
         sys.exit(1)
