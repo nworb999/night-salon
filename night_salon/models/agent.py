@@ -30,6 +30,7 @@ class Agent:
     current_action: Action = Action.WALK
     objective: str = "Exploring"
     thought: str = "Processing..."
+    destination: str = None
     state: dict = field(default_factory=lambda: {
         "position": {"x": 0, "y": 0, "z": 0},
         "velocity": {"x": 0, "y": 0, "z": 0},
@@ -43,7 +44,8 @@ class Agent:
             "location": self.location.name,
             "current_action": self.current_action.name,
             "objective": self.objective,
-            "thought": self.thought
+            "thought": self.thought,
+            "destination": self.destination
         })
         
     def update_state(self, new_state: dict):
@@ -57,6 +59,8 @@ class Agent:
             self.current_action = Action[new_state["current_action"]]
         self.objective = self.state.get("objective", self.objective)
         self.thought = self.state.get("thought", self.thought)
+        if "destination" in new_state:
+            self.destination = new_state["destination"]
 
     def update_position(self, x, y, z):
         self.state["position"] = {"x": x, "y": y, "z": z}

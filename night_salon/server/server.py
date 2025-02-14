@@ -8,7 +8,7 @@ from night_salon.models.agent import Agent
 from night_salon.models.events import UnityEvent
 from night_salon.cognitive.state_manager import StateManager
 from config.logger import logger
-from night_salon.models.environment import Location
+from night_salon.models.environment import Location, LocationData
 
 config = Config()
 
@@ -20,7 +20,8 @@ class Server:
         self.server_socket = None  # Add server socket
          # Add agent persistence file
         self.agent_storage_file = "agent_states.json"
-        self.environment_locations = {} # Store environment locations
+        # Update environment_locations to initialize with empty sub_locations lists
+        self.environment_locations = {loc: LocationData(loc, []) for loc in Location}
 
     def receive_message(self):
         try:
@@ -87,12 +88,19 @@ class Server:
             )
             
             # Process all event types through state manager
-            updated_state = self.state_manager.process_event(agent, event)
-            return {
-                "type": "cognitive_update",
-                "agent_id": agent_id,
-                "state": updated_state
-            }
+            new_destination = self.state_manager.process_event(agent, event)
+
+            if new_destination is not None:
+                return {
+                    "type": "destination_update",
+                    "agent_id": agent_id,
+                    "destination": new_destination
+                }
+            else:
+                return {
+                    "type": "no_update",
+                    "agent_id": agent_id
+                }
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON received: {message}")
@@ -118,22 +126,61 @@ class Server:
                     self.agents[agent_id] = Agent(agent_id)
                     logger.info(f"Added agent {agent_id} from setup data.")
 
-            # Extract environment locations
+            # Extract environment locations with fuzzy mapping
             locations_data = setup_data.get("locations", [])
             for location_name in locations_data:
-                try:
-                    location = Location[location_name.upper()]
-                    self.environment_locations[location_name] = location
-                    logger.info(f"Added location {location_name} from setup data.")
-                except KeyError:
-                    logger.warning(f"Invalid location name '{location_name}' in setup data.")
-            print(self.environment_locations)
-            print(self.agents)
+                mapped_location = self._map_location(location_name)
+                if mapped_location:
+                    # Add the original name as a sub-location
+                    self.environment_locations[mapped_location].sub_locations.append(location_name)
+                    logger.info(f"Mapped location '{location_name}' to '{mapped_location.name}'")
+                else:
+                    logger.warning(f"Could not map location name '{location_name}' to any known location type")
+            
+            # Log the complete mapping structure
+            for loc_type, loc_data in self.environment_locations.items():
+                logger.info(f"Location {loc_type}: {loc_data.sub_locations}")
+            
             return {"type": "setup_complete", "message": "Setup processed successfully."}
 
         except Exception as e:
             logger.error(f"Error processing setup data: {e}")
             return {"type": "error", "message": f"Error processing setup: {str(e)}"}
+
+    def _map_location(self, location_name):
+        """
+        Map incoming location names to defined Location enum values using simple pattern matching.
+        """
+        location_name = location_name.upper()
+        
+        # Direct mapping if exact match exists
+        if location_name in Location.__members__:
+            return Location[location_name]
+        
+        # Fuzzy mapping patterns
+        mapping_patterns = {
+            'CHAIR': Location.CUBICLES,
+            'DESK': Location.CUBICLES,
+            'OFFICE': Location.CUBICLES,
+            'ARMCHAIR': Location.CONFERENCE_ROOM,
+            'COUCH': Location.CONFERENCE_ROOM,
+            'TABLE': Location.CONFERENCE_ROOM,
+            'WATER': Location.WATER_COOLER,
+            'COOLER': Location.WATER_COOLER,
+            'BATHROOM': Location.BATHROOM,
+            'RESTROOM': Location.BATHROOM,
+            'TOILET': Location.BATHROOM,
+            'SMOKING': Location.SMOKING_AREA,
+            'HALL': Location.HALLWAY,
+            'CORRIDOR': Location.HALLWAY
+        }
+
+        # Check if any pattern matches the location name
+        for pattern, location in mapping_patterns.items():
+            if pattern in location_name:
+                return location
+
+        return None
 
     def start(self):
         client_address = (config.unity_host, config.unity_port)  # Unity server address

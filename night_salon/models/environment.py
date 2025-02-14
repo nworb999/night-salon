@@ -1,4 +1,11 @@
 from enum import Enum
+from dataclasses import dataclass
+from typing import List
+
+@dataclass
+class LocationData:
+    type: 'Location'
+    sub_locations: List[str]
 
 class Location(str, Enum):
     HALLWAY = "HALLWAY"
@@ -8,6 +15,9 @@ class Location(str, Enum):
     CUBICLES = "CUBICLES"
     BATHROOM = "BATHROOM"
 
-# Create a dictionary mapping location names to enum values
-LOCATION_MAPPING = {location.name: location for location in Location}
+# Create mapping dynamically with empty sub-locations
+LOCATION_MAPPING = {
+    location.name: LocationData(location, []) 
+    for location in Location
+}
 

@@ -12,7 +12,7 @@ def setup_logger(
     logger.setLevel(level)
 
     formatter = logging.Formatter(
-        "%(asctime)s %(colored_level)s%(message)s"
+        "%(asctime)s %(colored_level)s%(message)s\n"
     )
 
     # Add color formatter filter
