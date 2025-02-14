@@ -4,10 +4,11 @@ import time
 import traceback
 import sys
 from config import Config
-from night_salon.utils.types import Agent
+from night_salon.models.agent import Agent
 from night_salon.models.events import UnityEvent
 from night_salon.cognitive.state_manager import StateManager
 from config.logger import logger
+from night_salon.models.environment import Location
 
 config = Config()
 
@@ -17,6 +18,9 @@ class Server:
         self.agents = {}  # Store active agents
         self.client_socket = None
         self.server_socket = None  # Add server socket
+         # Add agent persistence file
+        self.agent_storage_file = "agent_states.json"
+        self.environment_locations = {} # Store environment locations
 
     def receive_message(self):
         try:
@@ -65,31 +69,30 @@ class Server:
             event_type = parts[0]
             agent_id = parts[1]
             data = json.loads(parts[2])
-            print(event_type + "\n")
-            
-            if event_type == "position_update":
-                # Get or create agent
-                agent = self.agents.get(agent_id)
-                if not agent:
-                    agent = Agent(agent_id)
-                    self.agents[agent_id] = agent
-                
-                # Create a UnityEvent object instead of a dictionary
-                event = UnityEvent(
-                    type=event_type,
-                    agent_id=agent_id,
-                    position=data.get('position'),
-                    velocity=data.get('velocity'),
-                    speed=data.get('speed')
-                )
-                updated_state = self.state_manager.process_event(agent, event)
-                return {
-                    "type": "cognitive_update",
-                    "agent_id": agent_id,
-                    "state": updated_state
-                }
 
-            return {"type": "error", "message": "Unknown event type"}
+            if event_type == "setup":
+                return self.process_setup(data)
+            
+            # Get or create agent (moved outside of position_update check)
+            agent = self.agents.get(agent_id)
+            if not agent:
+                agent = Agent(agent_id)
+                self.agents[agent_id] = agent
+            
+            # Create a UnityEvent object with all available data
+            event = UnityEvent(
+                type=event_type,
+                agent_id=agent_id,
+                data=data  # Pass raw data dictionary to be handled in state manager
+            )
+            
+            # Process all event types through state manager
+            updated_state = self.state_manager.process_event(agent, event)
+            return {
+                "type": "cognitive_update",
+                "agent_id": agent_id,
+                "state": updated_state
+            }
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON received: {message}")
@@ -101,6 +104,36 @@ class Server:
             logger.error(f"Error in {__name__} line {line_number}: {str(e)}")
             logger.debug(f"Full traceback:\n{''.join(traceback.format_exception(*exc_info))}")
             return {"type": "error", "message": f"{e.__class__.__name__} at {__name__}:{line_number}: {str(e)}"}
+
+    def process_setup(self, setup_data):
+        """
+        Process the initial setup data from Unity.
+        This includes agent IDs and environment locations.
+        """
+        try:
+            # Extract agent IDs
+            agent_ids = setup_data.get("agent_ids", [])
+            for agent_id in agent_ids:
+                if agent_id not in self.agents:
+                    self.agents[agent_id] = Agent(agent_id)
+                    logger.info(f"Added agent {agent_id} from setup data.")
+
+            # Extract environment locations
+            locations_data = setup_data.get("locations", [])
+            for location_name in locations_data:
+                try:
+                    location = Location[location_name.upper()]
+                    self.environment_locations[location_name] = location
+                    logger.info(f"Added location {location_name} from setup data.")
+                except KeyError:
+                    logger.warning(f"Invalid location name '{location_name}' in setup data.")
+            print(self.environment_locations)
+            print(self.agents)
+            return {"type": "setup_complete", "message": "Setup processed successfully."}
+
+        except Exception as e:
+            logger.error(f"Error processing setup data: {e}")
+            return {"type": "error", "message": f"Error processing setup: {str(e)}"}
 
     def start(self):
         client_address = (config.unity_host, config.unity_port)  # Unity server address
@@ -130,7 +163,7 @@ class Server:
                     # Receive update from Unity
                     message = self.receive_message()
                     if message:
-                        logger.info(f"Received: {message}")
+                        # logger.info(f"Received: {message}")
 
                         # Process message and prepare response
                         response = self.process_message(message)
@@ -155,6 +188,32 @@ class Server:
             logger.info("\nClosing connection...")
             if self.client_socket:
                 self.client_socket.close()
+
+    def _save_agent_states(self):
+        """Persist agent states to disk"""
+        try:
+            states = {
+                agent_id: agent.state 
+                for agent_id, agent in self.agents.items()
+            }
+            with open(self.agent_storage_file, 'w') as f:
+                json.dump(states, f, default=str)  # Handle enum serialization
+        except Exception as e:
+            logger.error(f"Error saving agent states: {e}")
+
+    def _load_agent_states(self):
+        """Load persisted agent states from disk"""
+        try:
+            with open(self.agent_storage_file, 'r') as f:
+                states = json.load(f)
+                for agent_id, state in states.items():
+                    agent = Agent(agent_id)
+                    agent.state = state
+                    self.agents[agent_id] = agent
+        except FileNotFoundError:
+            logger.info("No existing agent states found, starting fresh")
+        except Exception as e:
+            logger.error(f"Error loading agent states: {e}")
 
 
 

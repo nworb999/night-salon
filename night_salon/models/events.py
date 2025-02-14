@@ -3,7 +3,11 @@ class UnityEvent:
     def __init__(self, type, agent_id, **kwargs):
         self.type = type
         self.agent_id = agent_id
-        self.data = kwargs
+        # Instead of storing kwargs in data, store them directly in the event
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def __str__(self):
-        return f"UnityEvent(type={self.type}, agent_id={self.agent_id}, data={self.data})"
+        attrs = {k: v for k, v in self.__dict__.items() 
+                if k not in ['type', 'agent_id']}
+        return f"UnityEvent(type={self.type}, agent_id={self.agent_id}, {attrs})"

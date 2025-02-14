@@ -1,4 +1,5 @@
-from night_salon.utils.types import Location, Action
+from night_salon.models.agent import ACTION_MAPPING
+from night_salon.models.environment import LOCATION_MAPPING
 
 class StateManager:
     def process_event(self, agent, event):
@@ -9,26 +10,60 @@ class StateManager:
         if event.type == "position_update":
             pos = event.data["position"]
             agent.update_position(pos["x"], pos["y"], pos["z"])
+            updates = {}
             if "velocity" in event.data:
-                agent.state["velocity"] = event.data["velocity"]
+                updates["velocity"] = event.data["velocity"]
             if "speed" in event.data:
-                agent.state["speed"] = event.data["speed"]
+                updates["speed"] = event.data["speed"]
+            agent.update_state(updates)
             
         elif event.type == "state_change":
-            # Convert string to Action enum
-            agent.state["current_action"] = Action[event.data["state"].upper()]
+            # Map the state string to an Action enum
+            print(f"State: {event.data['state']}")
+            print(f"Available actions: {ACTION_MAPPING}")
+            
+            # TODO make this generative
+            state_mapping = {
+                "Standing": ACTION_MAPPING["REST"],  # Example mapping
+                "Walking": ACTION_MAPPING["WALK"],    # Example mapping
+                # Add more mappings as needed
+            }
+
+            mapped_state = state_mapping.get(event.data["state"], ACTION_MAPPING["WALK"])
+            print(f"Mapped state: {mapped_state}")
+
+            updates = {
+                "current_action": mapped_state.name
+            }
             if "position" in event.data:
                 pos = event.data["position"]
                 agent.update_position(pos["x"], pos["y"], pos["z"])
+            agent.update_state(updates)
             
         elif event.type == "destination_change":
-            # Convert string to Action enum for movement state
-            agent.state["current_action"] = Action[event.data["state"].upper()]
-            # Convert string to Location enum for target
-            agent.state["location"] = Location[event.data["targetName"].upper()]
+            # Map the targetName string to a Location enum
+            location_mapping = {
+                "WaterCooler": LOCATION_MAPPING["WATER_COOLER"],  # Example mapping
+                "SmokingArea": LOCATION_MAPPING["SMOKING_AREA"],    # Example mapping
+                # Add more mappings as needed
+            }
+            location = location_mapping.get(event.data["targetName"], LOCATION_MAPPING["HALLWAY"])  # Default to HALLWAY if not found
+            
+            # Map the state string to an Action enum
+            state_mapping = {
+                "Walking": ACTION_MAPPING["WALK"],    # Example mapping
+                # Add more mappings as needed
+            }
+            action = state_mapping.get(event.data["state"], ACTION_MAPPING["WALK"])  # Default to WALK if not found
+            
+            updates = {
+                "current_action": action.name,
+                "location": location
+            }
             if "position" in event.data:
                 pos = event.data["position"]
                 agent.update_position(pos["x"], pos["y"], pos["z"])
+            agent.update_state(updates)
         
         return self._get_cognitive_state(agent)
     
@@ -43,7 +78,4 @@ class StateManager:
     def _get_cognitive_state(self, agent):
         """Return the current cognitive state to be sent to Unity"""
         state_copy = agent.state.copy()
-        # Convert enums to strings
-        state_copy["location"] = agent.state["location"].name
-        state_copy["current_action"] = agent.state["current_action"].name
         return state_copy
