@@ -11,8 +11,6 @@ class Action(Enum):
     CHAT = auto()
     WORK = auto()
     MEETING = auto()
-    PRESENT = auto()
-    LISTEN = auto()
     PHONE_CALL = auto()
     DRINK = auto()
     USE_BATHROOM = auto()
