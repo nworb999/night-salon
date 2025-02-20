@@ -24,8 +24,8 @@ anyio = "*"
 python_version = "3.11"
 
 [scripts]
-start = "uvicorn night_salon.server.server:app --reload"
-start-prod = "uvicorn night_salon.server.server:app --workers 4"
+start = "uvicorn night_salon.server.server:app --reload --host ${HOST} --port ${PORT}"
+start-prod = "uvicorn night_salon.server.server:app --workers 4 --host ${HOST} --port ${PORT}"
 dev = "python main.py"
 test = "python scripts/test_websocket.py"
 format = "black ."
