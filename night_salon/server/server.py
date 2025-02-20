@@ -27,9 +27,11 @@ async def websocket_endpoint(websocket: WebSocket):
         print("Client disconnected normally")
     except Exception as e:
         print(f"WebSocket error: {e}")
-    finally:
-        if websocket.client_state.CONNECTED:
-            await websocket.close(code=1000)
+        # Attempt to close only if connection is still active
+        try:
+            await websocket.close(code=1001)  # 1001 = Going Away
+        except Exception as close_error:
+            print(f"Error closing connection: {close_error}")
 
 
 
