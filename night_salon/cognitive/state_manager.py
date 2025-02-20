@@ -1,6 +1,5 @@
 import random
-from night_salon.models.agent import ACTION_MAPPING
-from night_salon.models.environment import LOCATION_MAPPING
+from night_salon.models import ACTION_MAPPING, LOCATION_MAPPING
 
 class StateManager:
     def process_event(self, agent, event):

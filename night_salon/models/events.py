@@ -1,4 +1,3 @@
-# src/models/events.py
 class UnityEvent:
     def __init__(self, type, agent_id, **kwargs):
         self.type = type
