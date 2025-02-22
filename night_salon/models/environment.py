@@ -1,5 +1,5 @@
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 @dataclass
@@ -20,4 +20,10 @@ LOCATION_MAPPING = {
     location.name: LocationData(location, []) 
     for location in Location
 }
+
+@dataclass
+class EnvironmentState:
+    locations: dict = field(default_factory=dict)
+    cameras: list = field(default_factory=list)
+    items: list = field(default_factory=list)
 

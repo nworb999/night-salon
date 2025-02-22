@@ -2,17 +2,8 @@ import signal
 import sys
 import uvicorn
 import os
-from dotenv import load_dotenv
-import logging
-
-# Configure basic logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("WS Server")
-
-load_dotenv()
+from night_salon.utils.config import Config
+from utils.logger import logger
 
 def signal_handler(sig, frame):
     logger.info("Shutting down...")
@@ -20,10 +11,12 @@ def signal_handler(sig, frame):
 
 def main():
     signal.signal(signal.SIGINT, signal_handler)
+    config = Config()
+    
     uvicorn.run(
         "night_salon.server.server:app",
-        host=os.getenv("HOST", "0.0.0.0"),
-        port=int(os.getenv("PORT", "3000")),
+        host=config.host,
+        port=config.port,
         log_config=None,
         reload=os.getenv("ENV") == "development"
     )

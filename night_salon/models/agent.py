@@ -35,6 +35,8 @@ class Agent:
         "speed": 0,
         "last_updated": None,
     })
+    memory: dict = field(default_factory=lambda: {})
+    relationships: dict = field(default_factory=lambda: {})
 
     def __post_init__(self):
         self.state.update({
@@ -43,7 +45,9 @@ class Agent:
             "current_action": self.current_action.name,
             "objective": self.objective,
             "thought": self.thought,
-            "destination": self.destination
+            "destination": self.destination,
+            "memory": self.memory,
+            "relationships": self.relationships
         })
         
     def update_state(self, new_state: dict):
@@ -57,9 +61,9 @@ class Agent:
             self.current_action = Action[new_state["current_action"]]
         self.objective = self.state.get("objective", self.objective)
         self.thought = self.state.get("thought", self.thought)
+        if "memory" in new_state:
+            self.memory = new_state["memory"]
         if "destination" in new_state:
             self.destination = new_state["destination"]
-
-    def update_position(self, x, y, z):
-        self.state["position"] = {"x": x, "y": y, "z": z}
-        self.state["last_updated"] = time.time()
+        if "relationships" in new_state:
+            self.relationships = new_state["relationships"]

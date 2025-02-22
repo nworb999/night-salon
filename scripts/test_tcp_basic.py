@@ -1,8 +1,7 @@
 import socket
 import time
-import json
-from config import Config
-from config.logger import logger
+from utils.config import Config
+from utils.logger import logger
 
 config = Config()
 
