@@ -1,11 +1,14 @@
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
+
 @dataclass
-class LocationData:
-    type: 'Location'
-    sub_locations: List[str]
+class EnvironmentState:
+    locations: dict = field(default_factory=dict)
+    cameras: list = field(default_factory=list)
+    items: list = field(default_factory=list)
+
 
 class Location(str, Enum):
     HALLWAY = "HALLWAY"
@@ -15,9 +18,13 @@ class Location(str, Enum):
     CUBICLES = "CUBICLES"
     BATHROOM = "BATHROOM"
 
-# Create mapping dynamically with empty sub-locations
+@dataclass
+class LocationData:
+    name: str
+    type: Location
+    sub_locations: List[str] = field(default_factory=list)
+
 LOCATION_MAPPING = {
     location.name: LocationData(location, []) 
     for location in Location
 }
-

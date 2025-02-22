@@ -1,266 +1,51 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from night_salon.controllers.environment import EnvironmentController
+from night_salon.server.event_handler import EventHandler
+from night_salon.utils.logger import logger
 import json
-import socket
-import time
-import traceback
-import sys
-from config import Config
-from night_salon.models.agent import Agent
-from night_salon.models.events import UnityEvent
-from night_salon.cognitive.state_manager import StateManager
-from config.logger import logger
-from night_salon.models.environment import Location, LocationData
 
-config = Config()
+app = FastAPI()
+env_controller = EnvironmentController()  # Shared environment instance
 
-class Server:
-    def __init__(self):
-        self.state_manager = StateManager()
-        self.agents = {}  # Store active agents
-        self.client_socket = None
-        self.server_socket = None  # Add server socket
-         # Add agent persistence file
-        self.agent_storage_file = "agent_states.json"
-        # Update environment_locations to initialize with empty sub_locations lists
-        self.environment_locations = {loc: LocationData(loc, []) for loc in Location}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    def receive_message(self):
-        try:
-            # Read message length (4 bytes, little endian)
-            length_bytes = self.client_socket.recv(4)
-            if not length_bytes:
-                raise ConnectionError("Client disconnected (length)")
-            message_length = int.from_bytes(length_bytes, byteorder='little')
-
-            # Read exact message length
-            remaining = message_length
-            chunks = []
-            while remaining > 0:
-                chunk = self.client_socket.recv(remaining)
-                if not chunk:
-                    raise ConnectionError("Client disconnected (data)")
-                chunks.append(chunk)
-                remaining -= len(chunk)
-
-            raw_message = b''.join(chunks)
-            message = raw_message.decode('utf-8')
-            return message
-        except Exception as e:
-            logger.error(f"Error receiving message: {e}")
-            raise
-
-    def send_message(self, message):
-        try:
-            message_bytes = message.encode('utf-8')
-            # Send length prefix first (4 bytes, little endian)
-            length_prefix = len(message_bytes).to_bytes(4, byteorder='little')
-            self.client_socket.sendall(length_prefix)
-            # Then send the actual message
-            self.client_socket.sendall(message_bytes)
-        except Exception as e:
-            logger.error(f"Error sending message: {e}")
-            raise
-
-    def process_message(self, message):
-        try:
-            # Split message by pipe character
-            parts = message.split('|')
-            if len(parts) != 3:
-                raise ValueError("Message format incorrect - expected 3 parts separated by '|'")
-
-            event_type = parts[0]
-            agent_id = parts[1]
-            data = json.loads(parts[2])
-
-            if event_type == "setup":
-                return self.process_setup(data)
-            
-            # Get or create agent (moved outside of position_update check)
-            agent = self.agents.get(agent_id)
-            if not agent:
-                agent = Agent(agent_id)
-                self.agents[agent_id] = agent
-            
-            # Create a UnityEvent object with all available data
-            event = UnityEvent(
-                type=event_type,
-                agent_id=agent_id,
-                data=data  # Pass raw data dictionary to be handled in state manager
-            )
-            
-            # Process all event types through state manager
-            new_destination = self.state_manager.process_event(agent, event)
-
-            if new_destination is not None:
-                return {
-                    "type": "destination_update",
-                    "agent_id": agent_id,
-                    "destination": new_destination
-                }
-            else:
-                return {
-                    "type": "no_update",
-                    "agent_id": agent_id
-                }
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON received: {message}")
-            return {"type": "error", "message": f"Invalid JSON: {str(e)}"}
-        except Exception as e:
-            exc_info = sys.exc_info()
-            stack = traceback.extract_tb(exc_info[2])
-            line_number = stack[-1].lineno if stack else 'unknown'
-            logger.error(f"Error in {__name__} line {line_number}: {str(e)}")
-            logger.debug(f"Full traceback:\n{''.join(traceback.format_exception(*exc_info))}")
-            return {"type": "error", "message": f"{e.__class__.__name__} at {__name__}:{line_number}: {str(e)}"}
-
-    def process_setup(self, setup_data):
-        """
-        Process the initial setup data from Unity.
-        This includes agent IDs and environment locations.
-        """
-        try:
-            # Extract agent IDs
-            agent_ids = setup_data.get("agent_ids", [])
-            for agent_id in agent_ids:
-                if agent_id not in self.agents:
-                    self.agents[agent_id] = Agent(agent_id)
-                    logger.info(f"Added agent {agent_id} from setup data.")
-
-            # Extract environment locations with fuzzy mapping
-            locations_data = setup_data.get("locations", [])
-            for location_name in locations_data:
-                mapped_location = self._map_location(location_name)
-                if mapped_location:
-                    # Add the original name as a sub-location
-                    self.environment_locations[mapped_location].sub_locations.append(location_name)
-                    logger.info(f"Mapped location '{location_name}' to '{mapped_location.name}'")
-                else:
-                    logger.warning(f"Could not map location name '{location_name}' to any known location type")
-            
-            # Log the complete mapping structure
-            for loc_type, loc_data in self.environment_locations.items():
-                logger.info(f"Location {loc_type}: {loc_data.sub_locations}")
-            
-            return {"type": "setup_complete", "message": "Setup processed successfully."}
-
-        except Exception as e:
-            logger.error(f"Error processing setup data: {e}")
-            return {"type": "error", "message": f"Error processing setup: {str(e)}"}
-
-    def _map_location(self, location_name):
-        """
-        Map incoming location names to defined Location enum values using simple pattern matching.
-        """
-        location_name = location_name.upper()
-        
-        # Direct mapping if exact match exists
-        if location_name in Location.__members__:
-            return Location[location_name]
-        
-        # Fuzzy mapping patterns
-        mapping_patterns = {
-            'CHAIR': Location.CUBICLES,
-            'DESK': Location.CUBICLES,
-            'OFFICE': Location.CUBICLES,
-            'ARMCHAIR': Location.CONFERENCE_ROOM,
-            'COUCH': Location.CONFERENCE_ROOM,
-            'TABLE': Location.CONFERENCE_ROOM,
-            'WATER': Location.WATER_COOLER,
-            'COOLER': Location.WATER_COOLER,
-            'BATHROOM': Location.BATHROOM,
-            'RESTROOM': Location.BATHROOM,
-            'TOILET': Location.BATHROOM,
-            'SMOKING': Location.SMOKING_AREA,
-            'HALL': Location.HALLWAY,
-            'CORRIDOR': Location.HALLWAY
-        }
-
-        # Check if any pattern matches the location name
-        for pattern, location in mapping_patterns.items():
-            if pattern in location_name:
-                return location
-
-        return None
-
-    def start(self):
-        client_address = (config.unity_host, config.unity_port)  # Unity server address
-
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print("New client connected")
+    try:
         while True:
+            data = await websocket.receive_text()
             try:
-                self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                logger.info("Attempting to connect to Unity server...")
-                self.client_socket.connect(client_address)  # Connect to Unity's server
-                logger.info(f"Connected to Unity server at {client_address}")
-                break
-            except ConnectionRefusedError:
-                logger.warning("Connection failed. Retrying in 2 seconds...")
-                self.client_socket.close()  # Make sure to close the socket before retrying
-                time.sleep(2)
-            except KeyboardInterrupt:
-                logger.info("\nConnection attempts cancelled by user.")
-                return
+                event = json.loads(data)
+                print("\n\nEVENT",event)
+                event_type = event.get("messageType")
+                event_data = {k: v for k, v in event.items() if k != "messageType"}
+                logger.debug(f"Received event: {event_type}")
+                await EventHandler.handle_event(event_type, event_data, env_controller)
+                await websocket.send_json({"status": "success"})
+                
+            except json.JSONDecodeError:
+                logger.warning("Invalid JSON received")
+                await websocket.send_json({"status": "error", "message": "Invalid JSON format"})
+                
             except Exception as e:
-                logger.error(f"Connection error: {e}")
-                self.client_socket.close()  # Make sure to close the socket before retrying
-                time.sleep(2)
+                logger.error(f"Error processing event: {str(e)}", exc_info=True)
+                await websocket.send_json({"status": "error", "message": str(e)})
 
-        try:
-            while True:
-                try:
-                    # Receive update from Unity
-                    message = self.receive_message()
-                    if message:
-                        # logger.info(f"Received: {message}")
+    except WebSocketDisconnect:
+        logger.info("Client disconnected")
+    except Exception as e:
+        logger.error(f"Connection error: {str(e)}", exc_info=True)
+        await websocket.close(code=1011)
 
-                        # Process message and prepare response
-                        response = self.process_message(message)
-                        response_json = json.dumps(response)
-
-                        # Send response back to Unity
-                        self.send_message(response_json)
-                        logger.info(f"Sent response: {response_json}")
-
-                    time.sleep(0.01)  # Small delay to prevent busy-waiting
-
-                except (ConnectionAbortedError, ConnectionResetError) as e:
-                    logger.error(f"\nConnection lost: {e}")
-                    self.client_socket.close()
-                    break
-                except Exception as e:
-                    logger.error(f"Error in main loop: {e}")
-                    self.client_socket.close()
-                    break
-
-        except KeyboardInterrupt:
-            logger.info("\nClosing connection...")
-            if self.client_socket:
-                self.client_socket.close()
-
-    def _save_agent_states(self):
-        """Persist agent states to disk"""
-        try:
-            states = {
-                agent_id: agent.state 
-                for agent_id, agent in self.agents.items()
-            }
-            with open(self.agent_storage_file, 'w') as f:
-                json.dump(states, f, default=str)  # Handle enum serialization
-        except Exception as e:
-            logger.error(f"Error saving agent states: {e}")
-
-    def _load_agent_states(self):
-        """Load persisted agent states from disk"""
-        try:
-            with open(self.agent_storage_file, 'r') as f:
-                states = json.load(f)
-                for agent_id, state in states.items():
-                    agent = Agent(agent_id)
-                    agent.state = state
-                    self.agents[agent_id] = agent
-        except FileNotFoundError:
-            logger.info("No existing agent states found, starting fresh")
-        except Exception as e:
-            logger.error(f"Error loading agent states: {e}")
 
 
 

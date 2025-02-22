@@ -4,14 +4,12 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [packages]
-flask = "*"
-uvicorn = "*"
-pydantic = "*"
+uvicorn = {extras = ["standard"], version = "*"}
+fastapi = {extras = ["all"], version = "*"}
 requests = "*"
-websockets = "*"
-asyncio = "*"
 python-dotenv = "*"
-httpx = "*"
+uvloop = "*"
+httptools = "*"
 
 [dev-packages]
 pytest = "*"
@@ -20,13 +18,16 @@ isort = "*"
 flake8 = "*"
 mypy = "*"
 black = "*"
+anyio = "*"
 
 [requires]
 python_version = "3.11"
 
 [scripts]
-start = "python main.py"
-test = "python scripts/test_tcp_basic.py"
+start = "uvicorn night_salon.server.server:app --reload --host ${HOST} --port ${PORT}"
+start-prod = "uvicorn night_salon.server.server:app --workers 4 --host ${HOST} --port ${PORT}"
+dev = "python main.py"
+test = "python scripts/test_websocket.py"
 format = "black ."
 format-isort = "isort ."
 lint = "flake8 ."
