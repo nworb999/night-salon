@@ -1,21 +1,41 @@
 from night_salon.controllers.environment import EnvironmentController
-from night_salon.models import Agent, SetupEvent, LocationReachedEvent, ProximityEvent
+from night_salon.models import Agent, SetupEvent, LocationReachedEvent, ProximityEvent, LocationData
 from night_salon.utils.logger import logger
+from night_salon.models.environment import Location
 
 class EventHandler:
     """Handles different types of system events from clients"""
     
     @staticmethod
     async def handle_event(event_type: str, data: dict, env_controller: EnvironmentController):
+        print("\nevent_type",event_type)
+        print("\ndata",data)
         try:
             event_map = {
-                "setup": SetupEvent(**data),
-                "location_reached": LocationReachedEvent(**data),
-                "proximity_event": ProximityEvent(**data)
+                "setup": lambda: SetupEvent(
+                    type="setup",
+                    agent_ids=data.get('agent_ids', []),
+                    locations=data.get('locations', []),
+                    cameras=data.get('cameras', []),
+                    items=data.get('items', [])
+                ),
+                "location_reached": lambda: LocationReachedEvent(
+                    type="location_reached",
+                    agent_id=data['agent_id'],
+                    location_name=data['location_name'],
+                    coordinates=data.get('coordinates')
+                ),
+                "proximity_event": lambda: ProximityEvent(
+                    type="proximity_event",
+                    agent_id=data['agent_id'],
+                    target_id=data['target_id'],
+                    event_type=data['event_type'],
+                    distance=data['distance']
+                )
             }
             
             if event_type in event_map:
-                event = event_map[event_type]
+                event = event_map[event_type]()
                 logger.info(f"Processing {event_type} event")
                 
                 if event_type == "setup":
@@ -41,7 +61,26 @@ class EventHandler:
                 env_controller.add_agent(Agent(id=agent_id))
         
         logger.info(f"Setting up {len(event.locations)} locations")
-        env_controller.environment.locations = {loc: {} for loc in event.locations}
+        # Get all available location types
+        location_types = list(Location)
+        type_index = 0  # Counter for cycling through location types
+        
+        env_controller.environment.locations = {}
+        for i, raw_loc in enumerate(event.locations):
+            # Try to find matching enum value first
+            try:
+                loc_type = Location(raw_loc)
+            except ValueError:
+                # Assign type based on position cycling through available types
+                loc_type = location_types[type_index % len(location_types)]
+                type_index += 1
+            
+            env_controller.environment.locations[raw_loc] = LocationData(
+                name=raw_loc,
+                type=loc_type,
+                sub_locations=[]
+            )
+        
         env_controller.environment.cameras = event.cameras
         env_controller.environment.items = event.items
         logger.debug("Environment setup completed")

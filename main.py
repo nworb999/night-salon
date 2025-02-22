@@ -24,6 +24,9 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received, shutting down...")
+        sys.exit(0)
     except Exception as e:
         logger.error(f"Unhandled exception: {e}")
         sys.exit(1)

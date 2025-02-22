@@ -25,9 +25,9 @@ async def websocket_endpoint(websocket: WebSocket):
             data = await websocket.receive_text()
             try:
                 event = json.loads(data)
-                event_type = event.get("type")
-                event_data = event.get("data", {})
-                
+                print("\n\nEVENT",event)
+                event_type = event.get("messageType")
+                event_data = {k: v for k, v in event.items() if k != "messageType"}
                 logger.debug(f"Received event: {event_type}")
                 await EventHandler.handle_event(event_type, event_data, env_controller)
                 await websocket.send_json({"status": "success"})

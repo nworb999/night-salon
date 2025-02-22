@@ -1,17 +1,16 @@
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class AgentEvent(BaseModel):
     """Base class for all agent events"""
     type: str
     agent_id: str
 
-class SetupEvent(AgentEvent):
-    """Initialization event for environment setup"""
-    agent_ids: List[str]
+class SetupEvent(BaseModel):
+    agent_ids: List[str]  # Matches C# 'agent_ids' field
     locations: List[str]
     cameras: List[str]
-    items: List[str]
+    items: List[str] = Field(default_factory=list)  # Make optional with empty list default 
 
 class LocationReachedEvent(AgentEvent):
     """Event when an agent reaches a new location"""

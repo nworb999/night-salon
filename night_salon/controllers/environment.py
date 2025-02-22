@@ -1,5 +1,5 @@
-from night_salon.models.environment import EnvironmentState, LOCATION_MAPPING
-from night_salon.models.agent import Agent
+from night_salon.models import EnvironmentState, Agent
+from night_salon.utils.logger import logger
 
 class EnvironmentController:
     """Manages environment state and agent interactions"""
@@ -21,11 +21,18 @@ class EnvironmentController:
             del self.agents[agent_id]
 
     def _update_agent_location(self, agent: Agent):
-        """Update environment with agent's location data"""
-        location_data = LOCATION_MAPPING.get(agent.location.name)
-        if location_data:
-            # Add agent to location tracking
-            self.environment.locations[agent.location.name].sub_locations.append(agent.id)
+        """Update agent's location in the environment"""
+        if agent.location:
+            # Remove from previous location
+            for loc_data in self.environment.locations.values():
+                if agent.id in loc_data.sub_locations:
+                    loc_data.sub_locations.remove(agent.id)
+            
+            # Add to new location
+            if agent.location in self.environment.locations:
+                self.environment.locations[agent.location].sub_locations.append(agent.id)
+            else:
+                logger.warning(f"Location {agent.location} not found in environment locations")
 
     def get_environment_state(self):
         """Return current environment state"""
