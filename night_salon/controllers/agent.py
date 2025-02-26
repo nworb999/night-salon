@@ -23,7 +23,7 @@ class AgentController:
         if 'messageType' in event_data:
             await EventHandler.handle_event(
                 event_data['messageType'],
-                event_data,
+                event_data['data'],
                 self.env_controller
             )
             return {"status": "event_processed"}

@@ -1,4 +1,4 @@
-from models import LocationReachedEvent
+from night_salon.models import LocationReachedEvent
 
 
 class Planner:

@@ -23,7 +23,8 @@ class EventHandler:
                     type="location_reached",
                     agent_id=data['agent_id'],
                     location_name=data['location_name'],
-                    coordinates=data.get('coordinates')
+                    coordinates=data.get('coordinates'),
+                    sub_location=data.get('sub_location')
                 ),
                 "proximity_event": lambda: ProximityEvent(
                     type="proximity_event",
@@ -52,6 +53,7 @@ class EventHandler:
             raise
 
     @staticmethod
+    # TODO make idempotent with every simulation restart
     def _handle_setup(event: SetupEvent, env_controller: EnvironmentController):
         """Initialize environment with agents, locations and cameras"""
         logger.info(f"Initializing setup with {len(event.agent_ids)} agents")
@@ -65,7 +67,6 @@ class EventHandler:
         location_types = list(Location)
         type_index = 0  # Counter for cycling through location types
         
-        env_controller.environment.locations = {}
         for i, raw_loc in enumerate(event.locations):
             # Try to find matching enum value first
             try:
@@ -75,14 +76,10 @@ class EventHandler:
                 loc_type = location_types[type_index % len(location_types)]
                 type_index += 1
             
-            env_controller.environment.locations[raw_loc] = LocationData(
-                name=raw_loc,
-                type=loc_type,
-                sub_locations=[]
-            )
+            env_controller.add_location(raw_loc, loc_type)
         
-        env_controller.environment.cameras = event.cameras
-        env_controller.environment.items = event.items
+        [env_controller.add_camera(cam) for cam in event.cameras]
+        [env_controller.add_item(item) for item in event.items]
         logger.debug("Environment setup completed")
 
     @staticmethod
@@ -91,9 +88,30 @@ class EventHandler:
         logger.info(f"Agent {event.agent_id} reached {event.location_name}")
         agent = env_controller.agents.get(event.agent_id)
         if agent:
-            agent.location = event.location_name
-            env_controller._update_agent_location(agent)
-            logger.debug(f"Updated location for {event.agent_id}")
+            try:
+                location_enum = None
+                try:
+                    location_enum = Location(event.location_name)
+                except ValueError:
+                    try:
+                        location_enum = Location[event.location_name]
+                    except KeyError:
+                        logger.warning(f"Unknown location: {event.location_name}, defaulting to HALLWAY")
+                        location_enum = Location.HALLWAY
+
+                env_controller._update_agent_location(
+                    agent,
+                    location_enum, 
+                    event.sub_location
+                )
+            
+                logger.debug(f"Updated lcoation for {event.agent_id} to {location_enum.name}")
+
+                if event.coordinates:
+                    agent.state["position"] = event.coordinates
+
+            except Exception as e:
+                logger.error(f"Error updating location for agent6 {event.agent_id}: {str(e)}", exc_info=True)
         else:
             logger.warning(f"Agent {event.agent_id} not found")
 

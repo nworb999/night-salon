@@ -1,5 +1,6 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import Dict, List, Optional
+from pydantic import BaseModel
+from dataclasses import field
 
 class AgentEvent(BaseModel):
     """Base class for all agent events"""
@@ -7,18 +8,21 @@ class AgentEvent(BaseModel):
     agent_id: str
 
 class SetupEvent(BaseModel):
-    agent_ids: List[str]  # Matches C# 'agent_ids' field
-    locations: List[str]
-    cameras: List[str]
-    items: List[str] = Field(default_factory=list)  # Make optional with empty list default 
+    agent_ids: List[str] = field(default_factory=list)
+    locations: List[str] = field(default_factory=list)
+    cameras: List[str] = field(default_factory=list)
+    items: List[str] = field(default_factory=list)  
 
 class LocationReachedEvent(AgentEvent):
     """Event when an agent reaches a new location"""
-    location_name: str
-    coordinates: Optional[tuple] = None
+    agent_id: str = ""
+    location_name: str = ""
+    coordinates: List[float] = field(default_factory=list)
+    sub_location: Optional[str] = None
 
 class ProximityEvent(AgentEvent):
     """Event when agents come in proximity"""
-    target_id: str
-    distance: float
-    event_type: str  # 'enter' or 'exit'
+    target_id: str = ""
+    distance: float = ""
+    event_type: str = ""
+    distance: float = 0.0
