@@ -1,4 +1,3 @@
-from pydantic import BaseModel
 from dataclasses import dataclass, field
 from enum import Enum, auto
 import time
@@ -34,6 +33,7 @@ class Agent:
         "velocity": {"x": 0, "y": 0, "z": 0},
         "speed": 0,
         "last_updated": None,
+        "sub_location": None
     })
     memory: dict = field(default_factory=lambda: {})
     relationships: dict = field(default_factory=lambda: {})
@@ -47,23 +47,33 @@ class Agent:
             "thought": self.thought,
             "destination": self.destination,
             "memory": self.memory,
-            "relationships": self.relationships
+            "relationships": self.relationships,
+            "sub_location": self.state.get("sub_location")
         })
         
     def update_state(self, new_state: dict):
         """Safely update agent state with validation"""
         self.state.update(new_state)
         self.state["last_updated"] = time.time()
-        # Sync dataclass fields with state
+
+        # Sync dataclass Fields with state
         if "location" in new_state:
             self.location = Location[new_state["location"]]
         if "current_action" in new_state:
             self.current_action = Action[new_state["current_action"]]
+
         self.objective = self.state.get("objective", self.objective)
         self.thought = self.state.get("thought", self.thought)
+
         if "memory" in new_state:
             self.memory = new_state["memory"]
         if "destination" in new_state:
             self.destination = new_state["destination"]
         if "relationships" in new_state:
             self.relationships = new_state["relationships"]
+
+    def get_sub_location(self):
+        return self.state.get("sub_location")
+    
+    def is_at_sub_location(self, sub_location_id: str):
+        return self.get_sub_location() == sub_location_id
