@@ -33,6 +33,7 @@ class LocationData:
     type: Location
     sub_locations: Dict[str, SubLocation] = field(default_factory=list)
     agents: List[str] = field(default_factory=list)
+    valid: bool = False  # Track whether this location exists in Unity
 
 def create_location_mapping():
     mapping = {}

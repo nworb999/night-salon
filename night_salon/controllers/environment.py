@@ -14,12 +14,21 @@ class EnvironmentController:
         self.environment.cameras.append(camera)
 
     def add_location(self, location_name, location_type):
-        location_data = LocationData(
-                name=location_name,
-                type=location_type,
-                sub_locations=[]
-            )
-        self.environment.locations[location_name] = location_data
+        # Check if location already exists
+        if location_name in self.environment.locations:
+            # Update existing location
+            self.environment.locations[location_name].type = location_type
+            self.environment.locations[location_name].valid = True
+        else:
+            # Create new location
+            location_data = LocationData(
+                    name=location_name,
+                    type=location_type,
+                    sub_locations=[],
+                    valid=True  # Mark as valid since it's explicitly being added
+                )
+            self.environment.locations[location_name] = location_data
+        logger.info(f"Added location: {location_name} with type: {location_type}")
 
     def add_item(self, item):
         self.environment.items.append(item)
