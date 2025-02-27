@@ -115,6 +115,7 @@ class EventHandler:
     @staticmethod
     def _handle_location_reached(event: LocationReachedEvent, env_controller: EnvironmentController):
         """Update agent location in environment"""
+        # TODDO add handling for incoming SUB locations
         logger.info(f"Agent {event.agent_id} reached {event.location_name}")
         agent = env_controller.agents.get(event.agent_id)
         if agent:
