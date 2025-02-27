@@ -3,21 +3,22 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 
-
-
 @dataclass
-class Location: 
+class Location:
     """Represents a specific position within an area (e.g. a seat, standing place)"""
+
     id: str
     name: str
     type: str
     occupied_by: Optional[str] = None
+
 
 class LocationType(str, Enum):
     SEAT = "SEAT"
     STANDING_AREA = "STANDING_AREA"
     DESK = "DESK"
     STALL = "STALL"
+
 
 class Area(str, Enum):
     HALLWAY = "HALLWAY"
@@ -27,6 +28,7 @@ class Area(str, Enum):
     CUBICLES = "CUBICLES"
     BATHROOM = "BATHROOM"
 
+
 @dataclass
 class AreaData:
     name: str
@@ -35,8 +37,10 @@ class AreaData:
     agents: List[str] = field(default_factory=list)
     valid: bool = False  # Track whether this area exists in Unity
 
+
 # Initialize empty area mapping (will be populated during setup)
 LOCATION_MAPPING = {}
+
 
 @dataclass
 class EnvironmentState:

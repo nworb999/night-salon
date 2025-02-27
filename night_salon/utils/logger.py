@@ -11,22 +11,22 @@ def setup_logger(
     logger = logging.getLogger()
     logger.setLevel(level)
 
-    formatter = logging.Formatter(
-        "%(asctime)s %(colored_level)s%(message)s\n"
-    )
+    formatter = logging.Formatter("%(asctime)s %(colored_level)s%(message)s\n")
 
     # Add color formatter filter
     class ColoredLevelFormatter(logging.Filter):
         colors = {
-            logging.DEBUG: "\033[36m",    # Cyan
-            logging.INFO: "\033[32m",     # Green
+            logging.DEBUG: "\033[36m",  # Cyan
+            logging.INFO: "\033[32m",  # Green
             logging.WARNING: "\033[33m",  # Yellow
-            logging.ERROR: "\033[31m",    # Red
-            logging.CRITICAL: "\033[35m"  # Magenta
+            logging.ERROR: "\033[31m",  # Red
+            logging.CRITICAL: "\033[35m",  # Magenta
         }
 
         def filter(self, record):
-            record.colored_level = f"{self.colors.get(record.levelno, '')}[{record.levelname}]\033[0m "
+            record.colored_level = (
+                f"{self.colors.get(record.levelno, '')}[{record.levelname}]\033[0m "
+            )
             return True
 
     # Console handler
@@ -37,7 +37,9 @@ def setup_logger(
 
     # Optional file handler (without colors)
     if log_file:
-        file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s\n")
+        file_formatter = logging.Formatter(
+            "%(asctime)s - %(levelname)s - %(message)s\n"
+        )
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
@@ -48,4 +50,3 @@ def setup_logger(
 
 
 logger = setup_logger()
-  

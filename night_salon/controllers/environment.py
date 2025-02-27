@@ -3,14 +3,15 @@ from night_salon.models import EnvironmentState, Agent, AreaData
 from night_salon.utils.logger import logger
 from night_salon.utils.string_utils import normalize_name
 
+
 class EnvironmentController:
     """Manages environment state and agent interactions"""
-    
+
     def __init__(self):
         self.environment = EnvironmentState()
         self.environment.areas = {}  # Start with empty areas
-        self.agents = {} 
-        
+        self.agents = {}
+
         # Seed the environment with all areas from the Area enum
         self._initialize_areas()
 
@@ -21,7 +22,7 @@ class EnvironmentController:
                 name=area.name,
                 type=area,
                 locations={},
-                valid=False  # Mark as invalid until confirmed by Unity
+                valid=False,  # Mark as invalid until confirmed by Unity
             )
             self.environment.areas[area.value] = area_data
             logger.info(f"Initialized area: {area.name}")
@@ -38,32 +39,34 @@ class EnvironmentController:
         else:
             # Create new area
             area_data = AreaData(
-                    name=area_name,
-                    type=area_type,
-                    locations={},
-                    valid=True  # Mark as valid since it's explicitly being added
-                )
+                name=area_name,
+                type=area_type,
+                locations={},
+                valid=True,  # Mark as valid since it's explicitly being added
+            )
             self.environment.areas[area_name] = area_data
         logger.info(f"Added area: {area_name} with type: {area_type}")
 
-    def add_location_to_area(self, area_name, location_id, location_name, location_type):
+    def add_location_to_area(
+        self, area_name, location_id, location_name, location_type
+    ):
         """Add a location to an existing area"""
         if area_name not in self.environment.areas:
-            logger.warning(f"Area {area_name} not found, cannot add location {location_id}")
+            logger.warning(
+                f"Area {area_name} not found, cannot add location {location_id}"
+            )
             return
-            
+
         area = self.environment.areas[area_name]
         location = Location(
-            id=location_id,
-            name=location_name,
-            type=location_type.value
+            id=location_id, name=location_name, type=location_type.value
         )
         area.locations[location_id] = location
         logger.info(f"Added location {location_id} to area {area_name}")
 
     def add_item(self, item):
         self.environment.items.append(item)
-    
+
     def add_agent(self, agent: Agent):
         """Register a new agent in the environment"""
         logger.info(f"Added agent: {agent.id}")
@@ -103,20 +106,20 @@ class EnvironmentController:
         """Remove agent from their current location"""
         area = agent.area
         location_id = agent.state.get("location")
-        
+
         if not location_id:
             return
-        
+
         # Try multiple possible area keys for more robust lookups
         found_area = False
         area_key = None
-        
+
         for possible_key in [normalize_name(area.name), area.name, area.value]:
             if possible_key in self.environment.areas:
                 area_key = possible_key
                 found_area = True
                 break
-        
+
         if found_area and location_id in self.environment.areas[area_key].locations:
             location = self.environment.areas[area_key].locations[location_id]
             if location.occupied_by == agent.id:
@@ -125,33 +128,35 @@ class EnvironmentController:
     def _update_agent_location(self, agent: Agent, area: Area, location_id: str = None):
         """Update both the area and specific location for an agent"""
         old_area = agent.area
-        
+
         # Update agent's area
         agent.area = area
         agent.state["area"] = area.name
-        
+
         # Update state with location ID if provided
         if location_id:
             # Look for area using multiple potential keys for reliable lookup
             found_area = False
             area_key = None
-            
+
             for possible_key in [normalize_name(area.name), area.name, area.value]:
                 if possible_key in self.environment.areas:
                     area_key = possible_key
                     found_area = True
                     break
-            
+
             if found_area and location_id in self.environment.areas[area_key].locations:
                 location = self.environment.areas[area_key].locations[location_id]
-                
+
                 # First remove agent from their current location
                 self._remove_agent_from_location(agent)
-                
+
                 # Check if already occupied by another agent
                 if location.occupied_by and location.occupied_by != agent.id:
-                    logger.warning(f"Location {location_id} in {area.name} is already occupied. "
-                                  f"Agent {agent.id} will be in the area but not in the specific location.")
+                    logger.warning(
+                        f"Location {location_id} in {area.name} is already occupied. "
+                        f"Agent {agent.id} will be in the area but not in the specific location."
+                    )
                 else:
                     location.occupied_by = agent.id
                     agent.state["location"] = location_id
@@ -162,7 +167,7 @@ class EnvironmentController:
             # If no specific location, just remove them from any current location
             self._remove_agent_from_location(agent)
             agent.state["location"] = None
-        
+
         # If the area changed, update the area assignments
         if old_area != area:
             self._update_agent_area(agent)
@@ -172,7 +177,9 @@ class EnvironmentController:
         if area_key in self.environment.areas:
             return {
                 loc_id: location
-                for loc_id, location in self.environment.areas[area_key].locations.items()
+                for loc_id, location in self.environment.areas[
+                    area_key
+                ].locations.items()
                 if not location.occupied_by
             }
         return {}
@@ -189,29 +196,29 @@ class EnvironmentController:
                         loc_id: {
                             "name": location.name,
                             "type": location.type.value,
-                            "occupied_by": location.occupied_by
+                            "occupied_by": location.occupied_by,
                         }
                         for loc_id, location in area_data.locations.items()
-                    }
+                    },
                 }
                 for area_key, area_data in self.environment.areas.items()
             },
             "agents": {k: v.state for k, v in self.agents.items()},
             "cameras": self.environment.cameras,
-            "items": self.environment.items
-        } 
+            "items": self.environment.items,
+        }
 
     def get_locations_for_area(self, area_name):
         """Get all locations for a specific area with normalized name lookup"""
         normalized_name = normalize_name(area_name)
-        
+
         # Try with normalized name
         if normalized_name in self.environment.areas:
             return self.environment.areas[normalized_name].locations
-        
+
         # Try with original name as fallback
         if area_name in self.environment.areas:
             return self.environment.areas[area_name].locations
-        
+
         logger.warning(f"Area {area_name} not found")
-        return [] 
+        return []

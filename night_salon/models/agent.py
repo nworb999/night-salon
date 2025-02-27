@@ -3,7 +3,7 @@ from enum import Enum, auto
 import time
 
 from night_salon.models.environment import Area, Location
-    
+
 
 class Action(Enum):
     WALK = auto()
@@ -15,6 +15,7 @@ class Action(Enum):
     USE_BATHROOM = auto()
     SMOKE = auto()
     REST = auto()
+
 
 # Create a dictionary mapping action names to enum values
 ACTION_MAPPING = {action.name: action for action in Action}
@@ -28,29 +29,33 @@ class Agent:
     objective: str = "Exploring"
     thought: str = "Processing..."
     destination: str = None
-    state: dict = field(default_factory=lambda: {
-        "position": {"x": 0, "y": 0, "z": 0},
-        "velocity": {"x": 0, "y": 0, "z": 0},
-        "speed": 0,
-        "last_updated": None,
-        "location": None
-    })
+    state: dict = field(
+        default_factory=lambda: {
+            "position": {"x": 0, "y": 0, "z": 0},
+            "velocity": {"x": 0, "y": 0, "z": 0},
+            "speed": 0,
+            "last_updated": None,
+            "location": None,
+        }
+    )
     memory: dict = field(default_factory=lambda: {})
     relationships: dict = field(default_factory=lambda: {})
 
     def __post_init__(self):
-        self.state.update({
-            "agent_id": self.id,
-            "area": self.area.name,
-            "current_action": self.current_action.name,
-            "objective": self.objective,
-            "thought": self.thought,
-            "destination": self.destination,
-            "memory": self.memory,
-            "relationships": self.relationships,
-            "location": self.state.get("location")
-        })
-    
+        self.state.update(
+            {
+                "agent_id": self.id,
+                "area": self.area.name,
+                "current_action": self.current_action.name,
+                "objective": self.objective,
+                "thought": self.thought,
+                "destination": self.destination,
+                "memory": self.memory,
+                "relationships": self.relationships,
+                "location": self.state.get("location"),
+            }
+        )
+
     # TODO remove location from staet
     def update_state(self, new_state: dict):
         """Safely update agent state with validation"""
@@ -75,6 +80,6 @@ class Agent:
 
     def get_location(self):
         return self.state.get("location")
-    
+
     def is_at_location(self, location_id: str):
         return self.get_location() == location_id

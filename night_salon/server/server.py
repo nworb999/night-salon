@@ -21,11 +21,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     try:
         await websocket_manager.connect(websocket)
-        
+
         # Main message receiving loop
         while websocket_manager.is_connected(websocket):
             try:
@@ -40,12 +41,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Try to send error response if possible
                 try:
                     if websocket_manager.is_connected(websocket):
-                        await websocket.send_json({"status": "error", "message": "Error processing message"})
+                        await websocket.send_json(
+                            {"status": "error", "message": "Error processing message"}
+                        )
                 except Exception:
                     pass
                 websocket_manager.disconnect(websocket)
                 break
-                
+
     except WebSocketDisconnect:
         logger.info("Client disconnected during connection setup")
         websocket_manager.disconnect(websocket)
@@ -58,50 +61,52 @@ async def websocket_endpoint(websocket: WebSocket):
             # We don't need to log this - it's likely the connection is already closed
             pass
 
+
 @app.get("/send-random-move/{agent_id}")
 async def send_random_move_command(agent_id: str):
     """API endpoint to trigger a random move command for an agent"""
     if not websocket_manager.connected_clients:
         return {"status": "error", "message": "No connected clients"}
-    
+
     if agent_id not in env_controller.agents:
         return {"status": "error", "message": f"Agent {agent_id} not found"}
-        
+
     command = EventHandler.generate_random_movement_command(agent_id, env_controller)
     if not command:
         return {"status": "error", "message": "Failed to generate movement command"}
-    
+
     return await websocket_manager.broadcast_command(command)
+
 
 @app.get("/send-random-move-all")
 async def send_random_move_all():
     """API endpoint to trigger random moves for all agents"""
     if not websocket_manager.connected_clients:
         return {"status": "error", "message": "No connected clients"}
-    
+
     if not env_controller.agents:
         return {"status": "error", "message": "No agents registered"}
-    
+
     results = []
     failures = 0
-    
+
     for agent_id in env_controller.agents:
-        command = EventHandler.generate_random_movement_command(agent_id, env_controller)
+        command = EventHandler.generate_random_movement_command(
+            agent_id, env_controller
+        )
         if command:
             result = await websocket_manager.broadcast_command(command)
             failures += result.get("failed", 0)
-            results.append({
-                "agent_id": agent_id, 
-                "command": command,
-                "sent_to": result.get("sent_to", 0)
-            })
-    
+            results.append(
+                {
+                    "agent_id": agent_id,
+                    "command": command,
+                    "sent_to": result.get("sent_to", 0),
+                }
+            )
+
     return {
         "status": "success" if failures == 0 else "partial_success",
         "results": results,
-        "failures": failures
+        "failures": failures,
     }
-
-
-
-
