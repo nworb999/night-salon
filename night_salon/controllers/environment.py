@@ -107,7 +107,7 @@ class EnvironmentController:
         if not location_id:
             return
         
-        # Look for the area using multiple keys
+        # Try multiple possible area keys for more robust lookups
         found_area = False
         area_key = None
         
@@ -132,16 +132,11 @@ class EnvironmentController:
         
         # Update state with location ID if provided
         if location_id:
-            # Get the proper area key - this is the critical fix
-            # Either use the normalized name from the enum or look it up directly
-            area_key = area.value  # This is the problem - area.value is uppercase "CUBICLES"
-            
-            # NEW APPROACH: First try to find the area by its normalized name
-            normalized_area_name = normalize_name(area.name)
+            # Look for area using multiple potential keys for reliable lookup
             found_area = False
+            area_key = None
             
-            # Look for area using multiple potential keys
-            for possible_key in [normalized_area_name, area.name, area.value]:
+            for possible_key in [normalize_name(area.name), area.name, area.value]:
                 if possible_key in self.environment.areas:
                     area_key = possible_key
                     found_area = True

@@ -171,16 +171,18 @@ class EventHandler:
     @staticmethod
     def generate_random_movement_command(agent_id: str, env_controller: EnvironmentController):
         """Generate a command to move an agent to a random location"""
-        # Collect all valid locations from all areas
+        # Collect all valid and unoccupied locations from all areas
         available_locations = []
         
         for area_name, area_data in env_controller.environment.areas.items():
             if area_data.valid:
-                for loc_id in area_data.locations:
-                    available_locations.append(loc_id)
+                for loc_id, location in area_data.locations.items():
+                    # Only add locations that aren't already occupied or are occupied by this agent
+                    if not location.occupied_by or location.occupied_by == agent_id:
+                        available_locations.append(loc_id)
         
         if not available_locations:
-            logger.warning("No valid locations available for random movement")
+            logger.warning("No valid unoccupied locations available for random movement")
             return None
         
         agent = env_controller.agents.get(agent_id)
