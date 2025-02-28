@@ -11,6 +11,8 @@ class EnvironmentController:
         self.environment = EnvironmentState()
         self.environment.areas = {}  # Start with empty areas
         self.agents = {}
+        # Track planned locations to prevent conflicts
+        self.planned_locations = {}  # Maps area_key -> {location_id: agent_id}
 
         # Seed the environment with all areas from the Area enum
         self._initialize_areas()
@@ -25,6 +27,8 @@ class EnvironmentController:
                 valid=False,  # Mark as invalid until confirmed by Unity
             )
             self.environment.areas[area.value] = area_data
+            # Initialize empty planned locations dictionary for this area
+            self.planned_locations[area.value] = {}
             logger.info(f"Initialized area: {area.name}")
 
     def add_camera(self, camera):
@@ -79,7 +83,8 @@ class EnvironmentController:
             agent = self.agents[agent_id]
             self._remove_agent_from_area(agent)
             self._remove_agent_from_location(agent)
-
+            # Release any planned locations
+            self.release_planned_location(agent)
             del self.agents[agent_id]
 
     def _update_agent_area(self, agent: Agent):
@@ -136,30 +141,39 @@ class EnvironmentController:
         # Update state with location ID if provided
         if location_id:
             # Look for area using multiple potential keys for reliable lookup
-            found_area = False
-            area_key = None
+            area_key = self._get_area_key(area)
 
-            for possible_key in [normalize_name(area.name), area.name, area.value]:
-                if possible_key in self.environment.areas:
-                    area_key = possible_key
-                    found_area = True
-                    break
-
-            if found_area and location_id in self.environment.areas[area_key].locations:
+            if area_key and location_id in self.environment.areas[area_key].locations:
                 location = self.environment.areas[area_key].locations[location_id]
 
                 # First remove agent from their current location
                 self._remove_agent_from_location(agent)
 
+                # Check if the agent has this location planned
+                is_planned = False
+                if area_key in self.planned_locations and location_id in self.planned_locations[area_key]:
+                    is_planned = self.planned_locations[area_key][location_id] == agent.id
+                
                 # Check if already occupied by another agent
                 if location.occupied_by and location.occupied_by != agent.id:
                     logger.warning(
                         f"Location {location_id} in {area.name} is already occupied. "
                         f"Agent {agent.id} will be in the area but not in the specific location."
                     )
+                elif not is_planned and area_key in self.planned_locations and location_id in self.planned_locations[area_key]:
+                    # Location is planned by another agent
+                    logger.warning(
+                        f"Location {location_id} in {area.name} is planned by another agent. "
+                        f"Agent {agent.id} will be in the area but not in the specific location."
+                    )
                 else:
+                    # Occupy the location
                     location.occupied_by = agent.id
                     agent.state["location"] = location_id
+                    
+                    # If this was a planned location, release the plan
+                    if is_planned:
+                        del self.planned_locations[area_key][location_id]
             else:
                 logger.warning(f"Location {location_id} not found in {area.name}")
                 agent.state["location"] = None
@@ -173,16 +187,25 @@ class EnvironmentController:
             self._update_agent_area(agent)
 
     def get_available_locations(self, area: Area):
-        area_key = area.value
-        if area_key in self.environment.areas:
-            return {
-                loc_id: location
-                for loc_id, location in self.environment.areas[
-                    area_key
-                ].locations.items()
-                if not location.occupied_by
-            }
-        return {}
+        """Return only locations that are neither occupied nor planned"""
+        area_key = self._get_area_key(area)
+        if not area_key:
+            return {}
+            
+        result = {}
+        for loc_id, location in self.environment.areas[area_key].locations.items():
+            # Skip if occupied
+            if location.occupied_by:
+                continue
+                
+            # Skip if planned
+            if area_key in self.planned_locations and loc_id in self.planned_locations[area_key]:
+                continue
+                
+            # Location is available
+            result[loc_id] = location
+            
+        return result
 
     def get_environment_state(self):
         """Return current environment state"""
@@ -222,3 +245,90 @@ class EnvironmentController:
 
         logger.warning(f"Area {area_name} not found")
         return []
+
+    def is_location_available(self, area, location_id):
+        """Check if a location is available (not occupied or planned)"""
+        area_key = self._get_area_key(area)
+        if not area_key:
+            return False
+            
+        # Check if location exists
+        if location_id not in self.environment.areas[area_key].locations:
+            return False
+            
+        # Check if location is already occupied
+        location = self.environment.areas[area_key].locations[location_id]
+        if location.occupied_by:
+            return False
+            
+        # Check if location is planned
+        if area_key in self.planned_locations and location_id in self.planned_locations[area_key]:
+            return False
+            
+        return True
+        
+    def plan_location(self, agent, area, location_id):
+        """Reserve a location for an agent to move to later"""
+        area_key = self._get_area_key(area)
+        if not area_key:
+            logger.warning(f"Area {area.name} not found, cannot plan location")
+            return False
+            
+        if not self.is_location_available(area, location_id):
+            logger.warning(f"Location {location_id} in {area.name} is not available for planning")
+            return False
+            
+        # Reserve the location
+        if area_key not in self.planned_locations:
+            self.planned_locations[area_key] = {}
+        self.planned_locations[area_key][location_id] = agent.id
+        logger.info(f"Agent {agent.id} planned location {location_id} in {area.name}")
+        return True
+        
+    def release_planned_location(self, agent, area=None, location_id=None):
+        """Release a planned location if the agent changes plans"""
+        # If area and location_id are specified, only release that specific plan
+        if area and location_id:
+            area_key = self._get_area_key(area)
+            if area_key and area_key in self.planned_locations and location_id in self.planned_locations[area_key]:
+                if self.planned_locations[area_key][location_id] == agent.id:
+                    del self.planned_locations[area_key][location_id]
+                    logger.info(f"Agent {agent.id} released planned location {location_id} in {area.name}")
+            return
+            
+        # Otherwise, release all planned locations for this agent
+        for area_key, locations in self.planned_locations.items():
+            to_remove = []
+            for loc_id, agent_id in locations.items():
+                if agent_id == agent.id:
+                    to_remove.append(loc_id)
+            
+            for loc_id in to_remove:
+                del self.planned_locations[area_key][loc_id]
+                logger.info(f"Agent {agent.id} released planned location {loc_id}")
+
+    def _get_area_key(self, area):
+        """Helper to get the correct area key from an Area object"""
+        for possible_key in [normalize_name(area.name), area.name, area.value]:
+            if possible_key in self.environment.areas:
+                return possible_key
+        return None
+
+    def prepare_agent_move(self, agent_id, area, location_id):
+        """Prepare an agent's move by checking and reserving the target location.
+        Returns True if the location is available and was reserved, False otherwise."""
+        agent = self.agents.get(agent_id)
+        if not agent:
+            logger.warning(f"Cannot prepare move for unknown agent {agent_id}")
+            return False
+            
+        # Check if location is available
+        if not self.is_location_available(area, location_id):
+            logger.warning(f"Cannot move agent {agent_id} to {location_id} in {area.name}, location is not available")
+            return False
+            
+        # Plan/reserve the location
+        success = self.plan_location(agent, area, location_id)
+        if success:
+            logger.info(f"Reserved location {location_id} in {area.name} for agent {agent_id}")
+        return success

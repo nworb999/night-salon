@@ -196,15 +196,34 @@ class EventHandler:
         agent_id: str, env_controller: EnvironmentController
     ):
         """Generate a command to move an agent to a random location"""
-        # Collect all valid and unoccupied locations from all areas
-        available_locations = []
+        agent = env_controller.agents.get(agent_id)
+        if not agent:
+            logger.warning(f"Agent {agent_id} not found")
+            return None
 
+        # Get current location of agent
+        current_location = agent.state.get("current_location")
+        
+        # Find all available locations across all areas using our availability checking
+        available_locations = []
+        
         for area_name, area_data in env_controller.environment.areas.items():
-            if area_data.valid:
-                for loc_id, location in area_data.locations.items():
-                    # Only add locations that aren't already occupied or are occupied by this agent
-                    if not location.occupied_by or location.occupied_by == agent_id:
-                        available_locations.append(loc_id)
+            if not area_data.valid:
+                continue
+            
+            try:
+                area_enum = Area[area_data.name.upper()]
+            except (KeyError, ValueError):
+                # Skip areas that don't map to our enum
+                continue
+                
+            # Get truly available locations (neither occupied nor planned)
+            area_locations = env_controller.get_available_locations(area_enum)
+            
+            for loc_id in area_locations:
+                # Don't include current location as an option
+                if loc_id != current_location:
+                    available_locations.append((area_enum, loc_id))
 
         if not available_locations:
             logger.warning(
@@ -212,30 +231,19 @@ class EventHandler:
             )
             return None
 
-        agent = env_controller.agents.get(agent_id)
-        if not agent:
-            logger.warning(f"Agent {agent_id} not found")
-            return None
-
-        # Get current location of agent to avoid selecting the same one
-        current_location = agent.state.get("current_location")
-
-        # Filter out current location from available destinations
-        if current_location and current_location in available_locations:
-            filtered_locations = [
-                loc for loc in available_locations if loc != current_location
-            ]
-            if filtered_locations:
-                available_locations = filtered_locations
-
         # Select a random location
-        random_location = random.choice(available_locations)
-
-        logger.info(f"Instructing agent {agent_id} to move to {random_location}")
-
-        # Format the command as expected by Unity client
-        return {
-            "messageType": "move_to_location",
-            "agent_id": agent_id,
-            "location_name": random_location,
-        }
+        random_area, random_location = random.choice(available_locations)
+        
+        # Try to reserve the location before sending command
+        if env_controller.prepare_agent_move(agent_id, random_area, random_location):
+            logger.info(f"Instructing agent {agent_id} to move to {random_location}")
+            
+            # Format the command as expected by Unity client
+            return {
+                "messageType": "move_to_location",
+                "agent_id": agent_id,
+                "location_name": random_location,
+            }
+        else:
+            logger.warning(f"Failed to reserve location {random_location} for agent {agent_id}")
+            return None
