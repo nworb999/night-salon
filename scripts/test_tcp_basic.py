@@ -5,13 +5,14 @@ from utils.logger import logger
 
 config = Config()
 
+
 def receive_message(socket):
     # Read message length (4 bytes, little endian as BitConverter uses little endian by default)
     length_bytes = socket.recv(4)
     if not length_bytes:
         return None  # Indicate disconnection
-    message_length = int.from_bytes(length_bytes, byteorder='little')
-    
+    message_length = int.from_bytes(length_bytes, byteorder="little")
+
     # Read exact message length
     remaining = message_length
     chunks = []
@@ -21,16 +22,17 @@ def receive_message(socket):
             return None  # Indicate disconnection
         chunks.append(chunk)
         remaining -= len(chunk)
-    
-    raw_message = b''.join(chunks)
+
+    raw_message = b"".join(chunks)
     # Use UTF-8 encoding instead of ASCII
-    message = raw_message.decode('utf-8')
+    message = raw_message.decode("utf-8")
     return message
+
 
 def start_python_server():
     # Connect to Unity server
     server_address = (config.host, config.port)
-    
+
     while True:
         try:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -50,9 +52,9 @@ def start_python_server():
             try:
                 # Send request to Unity
                 message = "Python request"
-                message_bytes = message.encode('utf-8')  # Changed to UTF-8
+                message_bytes = message.encode("utf-8")  # Changed to UTF-8
                 # Send length prefix first (4 bytes, little endian)
-                length_prefix = len(message_bytes).to_bytes(4, byteorder='little')
+                length_prefix = len(message_bytes).to_bytes(4, byteorder="little")
                 client_socket.send(length_prefix)
                 # Then send the actual message
                 client_socket.send(message_bytes)
@@ -80,6 +82,7 @@ def start_python_server():
         logger.info("\nClosing connection...")
         if client_socket:
             client_socket.close()
+
 
 if __name__ == "__main__":
     start_python_server()

@@ -8,7 +8,6 @@ class Config:
 
     def __init__(self):
         load_dotenv()
-        
+
         self.host = os.getenv("HOST", "127.0.0.1")
         self.port = int(os.getenv("PORT", "8001"))
-

@@ -16,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -29,10 +30,7 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         await websocket.close()
 
+
 if __name__ == "__main__":
-    
-    uvicorn.run(
-        app,
-        host=os.getenv("HOST"),
-        port=int(os.getenv("PORT"))
-    )
+
+    uvicorn.run(app, host=os.getenv("HOST"), port=int(os.getenv("PORT")))
