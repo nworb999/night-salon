@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 from pydantic import BaseModel
-from dataclasses import field
+from dataclasses import dataclass, field
 
 
 class AgentEvent(BaseModel):
@@ -10,21 +10,25 @@ class AgentEvent(BaseModel):
     agent_id: str
 
 
-class AreaData(BaseModel):
-    """Represents area data with a name and list of locations"""
+@dataclass
+class LocationData:
+    location_name: str
+    coordinates: list = None
 
+
+@dataclass
+class AreaData:
     area_name: str
-    locations: List[str] = []
+    locations: list = field(default_factory=list)
 
 
-class SetupEvent(BaseModel):
-    """Event for initial setup of the environment"""
-
+@dataclass
+class SetupEvent:
     type: str = "setup"
-    agent_ids: List[str] = []
-    areas: List[AreaData] = []
-    cameras: List[str] = []
-    items: List[str] = []
+    agent_ids: list = field(default_factory=list)
+    areas: list[AreaData] = field(default_factory=list)
+    cameras: list = field(default_factory=list)
+    items: list = field(default_factory=list)
 
 
 class LocationReachedEvent(AgentEvent):

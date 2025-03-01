@@ -11,4 +11,5 @@ from night_salon.models.events import (
     SetupEvent,
     LocationReachedEvent,
     ProximityEvent,
+    LocationData
 )

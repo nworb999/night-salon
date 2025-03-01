@@ -6,6 +6,8 @@ from night_salon.models import (
     ProximityEvent,
     Area,
     LocationType,
+    AreaData,
+    LocationData,
     Location,
 )
 from night_salon.utils.logger import logger
@@ -50,7 +52,22 @@ class EventHandler:
             "setup": lambda: SetupEvent(
                 type="setup",
                 agent_ids=data.get("agent_ids", []),
-                areas=data.get("areas", []),
+                areas=[
+                    AreaData(
+                        name=area.get("area_name"),
+                        type=EventHandler._get_area_type(area.get("area_name")),
+                        locations={
+                            loc.get("location_name"): Location(
+                                id=loc.get("location_name"),
+                                name=loc.get("location_name"),
+                                type=LocationType.STANDING_AREA.value,
+                                coordinates=loc.get("coordinates")
+                            )
+                            for loc in area.get("locations", [])
+                        }
+                    )
+                    for area in data.get("areas", [])
+                ],
                 cameras=data.get("cameras", []),
                 items=data.get("items", []),
             ),
@@ -70,6 +87,15 @@ class EventHandler:
         }
         
         return event_map[event_type]() if event_type in event_map else None
+
+    @staticmethod
+    def _get_area_type(area_name: str) -> Area:
+        """Convert area name to Area enum type"""
+        try:
+            return Area[area_name.upper()]
+        except (KeyError, ValueError, AttributeError):
+            logger.warning(f"Unknown area type: {area_name}, defaulting to HALLWAY")
+            return Area.HALLWAY
 
     @staticmethod
     async def _handle_setup(event: SetupEvent, env_controller: EnvironmentController):
@@ -102,7 +128,7 @@ class EventHandler:
         logger.info(f"Setting up {len(areas)} areas")
         
         for area_data in areas:
-            area_name = area_data.area_name
+            area_name = area_data.name
             locations = area_data.locations
             
             # Try to map to an Area enum if possible
@@ -117,9 +143,16 @@ class EventHandler:
             env_controller.add_area(area_name, area_type)
             
             # Add each location to the area
-            for location_name in locations:
+            for location in locations:
+                location_name = location.name if hasattr(location, 'name') else location
+                coordinates = location.coordinates if hasattr(location, 'coordinates') else None
+                
                 env_controller.add_location_to_area(
-                    area_name, location_name, location_name, LocationType.STANDING_AREA
+                    area_name, 
+                    location_name, 
+                    location_name, 
+                    LocationType.STANDING_AREA,
+                    coordinates
                 )
 
     @staticmethod
@@ -183,7 +216,11 @@ class EventHandler:
             logger.debug(f"Updated location for {event.agent_id} to {location_id}")
             
         if event.coordinates:
-            agent.state["position"] = event.coordinates
+            agent.state["position"] = {
+                "x": event.coordinates[0],
+                "y": event.coordinates[1],
+                "z": event.coordinates[2]
+            }
             
         agent.state["last_move_time"] = asyncio.get_event_loop().time()
         agent.state["current_location"] = event.location_name

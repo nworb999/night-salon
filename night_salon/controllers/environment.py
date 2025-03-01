@@ -52,7 +52,7 @@ class EnvironmentController:
         logger.info(f"Added area: {area_name} with type: {area_type}")
 
     def add_location_to_area(
-        self, area_name, location_id, location_name, location_type
+        self, area_name, location_id, location_name, location_type, coordinates=None
     ):
         """Add a location to an existing area"""
         if area_name not in self.environment.areas:
@@ -63,7 +63,10 @@ class EnvironmentController:
 
         area = self.environment.areas[area_name]
         location = Location(
-            id=location_id, name=location_name, type=location_type.value
+            id=location_id, 
+            name=location_name, 
+            type=location_type.value,
+            coordinates=coordinates
         )
         area.locations[location_id] = location
         logger.info(f"Added location {location_id} to area {area_name}")
@@ -220,6 +223,7 @@ class EnvironmentController:
                             "name": location.name,
                             "type": location.type.value,
                             "occupied_by": location.occupied_by,
+                            "coordinates": location.coordinates,
                         }
                         for loc_id, location in area_data.locations.items()
                     },

@@ -9,8 +9,9 @@ class Location:
 
     id: str
     name: str
-    type: str
-    occupied_by: Optional[str] = None
+    type: int
+    occupied_by: str = None
+    coordinates: list = None
 
 
 class LocationType(str, Enum):
